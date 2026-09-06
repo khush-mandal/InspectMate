@@ -1,0 +1,6 @@
+{
+  "name": "InspectMate",
+  "description": "AI-assisted regulatory packaged-commodity inspection PWA. Verifies MRP, net quantity, manufacturer, consumer-care, and date compliance with evidence-backed workflows.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,190 @@
+@import "tailwindcss";
+
+@layer utilities {
+  .glass-card {
+    background: rgba(255, 255, 255, 0.62);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.85);
+    box-shadow: 0 8px 32px -4px rgba(15, 23, 42, 0.08), 0 2px 8px -2px rgba(15, 23, 42, 0.04);
+  }
+
+  .glass-card-hover {
+    transition: all 250ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .glass-card-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 16px 40px -6px rgba(15, 23, 42, 0.12), 0 4px 12px -2px rgba(15, 23, 42, 0.06);
+    background: rgba(255, 255, 255, 0.75);
+    border-color: rgba(255, 255, 255, 0.95);
+  }
+
+  .glass-panel {
+    background: rgba(255, 255, 255, 0.75);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    box-shadow: 0 10px 30px -5px rgba(15, 23, 42, 0.07);
+  }
+
+  .glass-input {
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(203, 213, 225, 0.8);
+    color: #0f172a;
+    transition: all 200ms ease;
+  }
+  .glass-input:focus {
+    background: rgba(255, 255, 255, 0.95);
+    border-color: #4f46e5;
+    box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+    outline: none;
+  }
+}
+
+/* Custom scrollbars for clean inspection views */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.4);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.6);
+}
+
+/* ==========================================================================
+   Print-Friendly Media Query for Final Inspection Report (Screen 16) & Forms
+   ========================================================================== */
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm 12mm 10mm 12mm;
+  }
+
+  /* Force background colors and crisp borders in PDF output */
+  *,
+  *::before,
+  *::after {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    text-shadow: none !important;
+  }
+
+  /* Hide all application navigation chrome, buttons, and floating accessories */
+  .no-print,
+  .screen-navigator,
+  header,
+  aside,
+  nav,
+  footer,
+  button,
+  .fixed,
+  .pointer-events-none,
+  [data-no-print="true"] {
+    display: none !important;
+  }
+
+  /* Reset document root to clean, unconstrained white canvas */
+  html,
+  body,
+  #root {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    min-height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* Reset main content containers to full width without side padding */
+  main,
+  .max-w-4xl,
+  .max-w-5xl,
+  .max-w-7xl {
+    max-width: 100% !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Printable Report Container Card */
+  .printable-report,
+  #final-inspection-report {
+    background: #ffffff !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    border: 1.5px solid #94a3b8 !important;
+    border-radius: 8px !important;
+    box-shadow: none !important;
+    padding: 16px 20px !important;
+    margin: 0 auto !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Avoid awkward page cuts through critical blocks */
+  .print-avoid-break,
+  .printable-report .stat-box,
+  .printable-report .premises-block,
+  .printable-report table,
+  .printable-report tr,
+  .printable-report .signature-block,
+  .printable-report .legal-notice-box {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* Table styling for printed report */
+  .printable-report table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  .printable-report th {
+    background-color: #f1f5f9 !important;
+    color: #334155 !important;
+    border: 1px solid #cbd5e1 !important;
+    font-weight: 700 !important;
+  }
+
+  .printable-report td {
+    border: 1px solid #e2e8f0 !important;
+  }
+
+  /* Highlight severity badges clearly in PDF */
+  .print-severity-major {
+    background-color: #fee2e2 !important;
+    color: #991b1b !important;
+    border: 1px solid #f87171 !important;
+    font-weight: 700 !important;
+  }
+
+  .print-severity-moderate {
+    background-color: #fef3c7 !important;
+    color: #92400e !important;
+    border: 1px solid #fbbf24 !important;
+    font-weight: 700 !important;
+  }
+
+  /* Digital seal box */
+  .print-digital-seal {
+    border: 1.5px dashed #0d9488 !important;
+    background-color: #f0fdfa !important;
+    color: #115e59 !important;
+  }
+
+  /* Text link annotations */
+  a[href]::after {
+    content: "" !important; /* Avoid messy URL suffixes in official legal notice */
+  }
+}
+

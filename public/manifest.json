@@ -1,0 +1,19 @@
+{
+  "id": "/",
+  "name": "InspectMate — Regulatory Inspection",
+  "short_name": "InspectMate",
+  "description": "AI-assisted regulatory inspection PWA for packaged commodities legal compliance.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#EEF2FF",
+  "theme_color": "#4F46E5",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
