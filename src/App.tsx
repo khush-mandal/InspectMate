@@ -28,13 +28,25 @@ import { EdgeCaseSandboxScreen } from './components/screens/EdgeCaseSandboxScree
 import { SAMPLE_PRODUCTS } from './data/mockData';
 import { ProductSample, InspectionRecord, UserRole } from './types';
 
-export default function App() {
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { ProtectedRoute } from './components/common/ProtectedRoute';
+
+function AppContent() {
+  const { user, role, isLoading, logout } = useAuth();
   const [currentScreen, setCurrentScreen] = useState<number>(1);
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(true); // Logged in by default for quick exploration
-  const [userRole, setUserRole] = useState<UserRole>('inspector');
   const [selectedProduct, setSelectedProduct] = useState<ProductSample>(SAMPLE_PRODUCTS[0]);
   const [inspectionId, setInspectionId] = useState<string>('PRM-2026-0842');
   const [isOnline, setIsOnline] = useState<boolean>(true);
+
+  // Auto-navigate if logged in and on login screen
+  React.useEffect(() => {
+    if (user && currentScreen === 1) {
+      if (role === 'regulator') setCurrentScreen(18);
+      else setCurrentScreen(2);
+    } else if (!user && !isLoading) {
+      setCurrentScreen(1);
+    }
+  }, [user, role, currentScreen, isLoading]);
 
   // Navigation handler
   const handleNavigate = (screenNum: number) => {
@@ -44,28 +56,15 @@ export default function App() {
     }
   };
 
-  const handleLoginSuccess = (role: UserRole = 'inspector') => {
-    setIsLoggedIn(true);
-    setUserRole(role);
-    if (role === 'regulator') {
-      setCurrentScreen(18); // Regulator view: Analytics & Compliance
-    } else {
-      setCurrentScreen(2); // Inspector view: Dashboard
-    }
-  };
-
-  const handleRoleChange = (role: UserRole) => {
-    setUserRole(role);
-    if (role === 'regulator') {
-      setCurrentScreen(18);
-    } else if (currentScreen === 18) {
-      setCurrentScreen(2);
-    }
-  };
-
   const handleLogout = () => {
-    setIsLoggedIn(false);
+    logout();
     setCurrentScreen(1);
+  };
+
+  const handleRoleChange = (newRole: UserRole) => {
+    // Only used for UI mocking if needed, but actual role comes from AuthContext
+    // Ideally we shouldn't allow changing role client-side anymore unless it's just a demo toggle.
+    // For now we'll keep the prop but it doesn't do anything because role is from JWT.
   };
 
   const handleSelectRecord = (record: InspectionRecord) => {
@@ -74,6 +73,14 @@ export default function App() {
     setSelectedProduct(match);
     setInspectionId(record.id);
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen text-slate-900 flex flex-col relative selection:bg-teal-200 selection:text-teal-900 overflow-x-hidden">
@@ -95,21 +102,23 @@ export default function App() {
       </div>
 
       {/* Persistent App Header */}
-      <div className="no-print">
-        <Header
-          currentScreen={currentScreen}
-          onNavigate={handleNavigate}
-          isOnline={isOnline}
-          role={userRole}
-          onRoleChange={handleRoleChange}
-          onLogout={handleLogout}
-        />
-      </div>
+      {user && (
+        <div className="no-print">
+          <Header
+            currentScreen={currentScreen}
+            onNavigate={handleNavigate}
+            isOnline={isOnline}
+            role={role as UserRole}
+            onRoleChange={handleRoleChange}
+            onLogout={handleLogout}
+          />
+        </div>
+      )}
 
       {/* Main Body Container with Responsive Sidebar */}
       <div className="flex-1 flex max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 gap-6 relative z-10 pb-20 md:pb-6">
         {/* Desktop Sidebar (visible when logged in and not on full login view) */}
-        {currentScreen !== 1 && (
+        {user && currentScreen !== 1 && (
           <aside className="hidden md:block w-64 shrink-0 no-print">
             <Sidebar currentScreen={currentScreen} onNavigate={handleNavigate} />
           </aside>
@@ -119,17 +128,19 @@ export default function App() {
         <main className="flex-1 min-w-0">
           {/* Screen 1: Login */}
           {currentScreen === 1 && (
-            <LoginScreen onLogin={handleLoginSuccess} onLoginSuccess={handleLoginSuccess} />
+            <LoginScreen onLoginSuccess={() => {}} />
           )}
 
-          {/* Screen 2: Inspector Dashboard */}
-          {currentScreen === 2 && (
-            <InspectorDashboard
-              onStartNewInspection={() => handleNavigate(3)}
-              onSelectInspection={handleSelectRecord}
-              onNavigate={handleNavigate}
-            />
-          )}
+          {currentScreen !== 1 && (
+            <ProtectedRoute>
+              {/* Screen 2: Inspector Dashboard */}
+              {currentScreen === 2 && (
+                <InspectorDashboard
+                  onStartNewInspection={() => handleNavigate(3)}
+                  onSelectInspection={handleSelectRecord}
+                  onNavigate={handleNavigate}
+                />
+              )}
 
           {/* Screen 3: New Inspection Form */}
           {currentScreen === 3 && (
@@ -275,15 +286,25 @@ export default function App() {
           {currentScreen === 19 && (
             <EdgeCaseSandboxScreen onNavigate={handleNavigate} />
           )}
+          </ProtectedRoute>
+          )}
         </main>
       </div>
 
       {/* Mobile Bottom Navigation */}
-      {currentScreen !== 1 && (
+      {user && currentScreen !== 1 && (
         <div className="no-print">
           <BottomNav currentScreen={currentScreen} onNavigate={handleNavigate} />
         </div>
       )}
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
