@@ -4,21 +4,49 @@ import { GlassCard } from '../common/GlassCard';
 import { GlassButton } from '../common/GlassButton';
 import { UserRole } from '../../types';
 
+import { useAuth } from '../../context/AuthContext';
+
 interface LoginScreenProps {
   onLogin?: (role: UserRole) => void;
   onLoginSuccess?: (role: UserRole) => void;
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onLoginSuccess }) => {
-  const [email, setEmail] = useState('ashish.sainik@legalmetrology.gov.in');
-  const [password, setPassword] = useState('••••••••••••');
+  const [email, setEmail] = useState('inspector@inspectmate.com');
+  const [password, setPassword] = useState('password123');
   const [selectedRole, setSelectedRole] = useState<UserRole>('inspector');
+  const [error, setError] = useState<string>('');
+  const [loading, setLoading] = useState<boolean>(false);
+  const { login } = useAuth();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const handler = onLogin || onLoginSuccess;
-    if (handler) {
-      handler(selectedRole);
+    setError('');
+    setLoading(true);
+
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Login failed');
+      }
+
+      login(data.accessToken, data.refreshToken, data.user);
+      
+      const handler = onLogin || onLoginSuccess;
+      if (handler) {
+        handler(data.user.role.toLowerCase() as UserRole);
+      }
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -59,7 +87,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onLoginSucces
               type="button"
               onClick={() => {
                 setSelectedRole('inspector');
-                setEmail('ashish.sainik@legalmetrology.gov.in');
+                setEmail('inspector@inspectmate.com');
               }}
               className={`py-2 px-3 rounded-xl text-xs font-bold transition ${
                 selectedRole === 'inspector'
@@ -73,7 +101,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onLoginSucces
               type="button"
               onClick={() => {
                 setSelectedRole('regulator');
-                setEmail('director.controller@regulatory.gov.in');
+                setEmail('admin@inspectmate.com');
               }}
               className={`py-2 px-3 rounded-xl text-xs font-bold transition ${
                 selectedRole === 'regulator'
@@ -84,6 +112,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onLoginSucces
               Regulator / Admin
             </button>
           </div>
+
+          {/* Error Message */}
+          {error && (
+            <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-xs font-medium text-center">
+              {error}
+            </div>
+          )}
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
