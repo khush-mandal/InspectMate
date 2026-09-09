@@ -108,6 +108,10 @@ export class InspectionService {
       throw new Error(`Invalid state transition from ${current} to ${next}`);
     }
   }
+
+  async getDashboard(inspectorId: string) {
+    return await inspectionRepository.getDashboardStats(inspectorId);
+  }
 }
 
 export const inspectionService = new InspectionService();

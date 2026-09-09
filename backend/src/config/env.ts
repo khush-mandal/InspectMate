@@ -8,7 +8,7 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   JWT_SECRET: z.string().min(1, 'JWT_SECRET must be defined').default('supersecret'),
   REFRESH_SECRET: z.string().min(1, 'REFRESH_SECRET must be defined').default('refreshsecret'),
-  MONGODB_URI: z.string().url('MONGODB_URI must be a valid URL').default('mongodb://127.0.0.1:27017/inspectmate'),
+  MONGODB_URI: z.string().startsWith('mongodb', 'MONGODB_URI must start with mongodb').default('mongodb://127.0.0.1:27017/inspectmate'),
   DB_NAME: z.string().default('inspectmate'),
 });
 

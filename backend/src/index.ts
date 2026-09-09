@@ -5,6 +5,7 @@ import { env } from './config/env';
 import { connectDB } from './db/connection';
 import { logger } from './utils/logger';
 import authRoutes, { seedUsers } from './routes/auth';
+import inspectionsRoutes from './routes/inspections';
 
 const app = express();
 
@@ -13,6 +14,7 @@ app.use(express.json());
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/inspections', inspectionsRoutes);
 
 // Database Health Check
 app.get('/api/health', async (req, res) => {
