@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext';
 
 vi.mock('../hooks/useInspectorDashboard');
 vi.mock('../context/AuthContext');
+vi.mock('../hooks/useCreateInspection');
 
 const mockUseInspectorDashboard = useInspectorDashboard as any;
 const mockUseAuth = useAuth as any;
@@ -136,5 +137,40 @@ describe('InspectorDashboard', () => {
     expect(screen.getByText('INS-01')).toBeInTheDocument();
     expect(screen.getByText('Electronics')).toBeInTheDocument();
     expect(screen.getByText('TechCorp')).toBeInTheDocument();
+  });
+
+  it('handles + New Inspection creation', async () => {
+    mockUseInspectorDashboard.mockReturnValue({
+      isLoading: false,
+      data: { summary: {}, recentInspections: [] },
+      error: null,
+      isOffline: false,
+      refresh: vi.fn()
+    });
+
+    const mockCreateInspection = vi.fn().mockResolvedValue('NEW-INS-ID');
+    const { useCreateInspection } = await import('../hooks/useCreateInspection');
+    (useCreateInspection as any).mockReturnValue({
+      createInspection: mockCreateInspection,
+      isCreating: false,
+      error: null
+    });
+
+    render(
+      <InspectorDashboard 
+        onStartNewInspection={mockOnStartNewInspection}
+        onSelectInspection={mockOnSelectInspection}
+        onNavigate={mockOnNavigate}
+      />
+    );
+
+    const newBtn = screen.getByText('+ New Inspection');
+    fireEvent.click(newBtn);
+
+    expect(mockCreateInspection).toHaveBeenCalled();
+    
+    // Check if onStartNewInspection is called with the new ID after tick
+    await new Promise(process.nextTick);
+    expect(mockOnStartNewInspection).toHaveBeenCalledWith('NEW-INS-ID');
   });
 });

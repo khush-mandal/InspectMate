@@ -18,6 +18,8 @@ import { StatusPill } from '../common/StatusPill';
 import { SAMPLE_PRODUCTS } from '../../data/mockData';
 import { ProductSample } from '../../types';
 
+import { useUpdateInspection } from '../../hooks/useUpdateInspection';
+
 interface NewInspectionFormProps {
   inspectionId: string;
   onProceed: (data: {
@@ -41,6 +43,8 @@ export const NewInspectionForm: React.FC<NewInspectionFormProps> = ({
   const [batchNo, setBatchNo] = useState('LOT-GHF-992B');
   const [notes, setNotes] = useState('Routine surveillance inspection for Legal Metrology Packaged Commodities compliance.');
   const [inspectReason, setInspectReason] = useState('Routine Market Surveillance');
+  
+  const { updateMetadata, isUpdating } = useUpdateInspection();
 
   const currentDate = new Date().toLocaleDateString('en-GB', {
     day: 'numeric',
@@ -52,14 +56,31 @@ export const NewInspectionForm: React.FC<NewInspectionFormProps> = ({
     minute: '2-digit'
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onProceed({
-      location: retailerLocation,
-      category,
-      product: selectedProduct,
+  const handleSaveMetadata = async () => {
+    // In a real app we'd convert address to coordinates. For mock, just omit or send dummy.
+    await updateMetadata(inspectionId, {
+      productCategory: category,
+      manufacturer: selectedProduct.manufacturer, // using selected mock manufacturer
       notes
     });
+  };
+
+  const handleSaveAndProceed = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const success = await updateMetadata(inspectionId, {
+      productCategory: category,
+      manufacturer: selectedProduct.manufacturer,
+      notes
+    });
+    
+    if (success) {
+      onProceed({
+        location: retailerLocation,
+        category,
+        product: selectedProduct,
+        notes
+      });
+    }
   };
 
   return (
@@ -84,7 +105,7 @@ export const NewInspectionForm: React.FC<NewInspectionFormProps> = ({
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSaveAndProceed} className="space-y-6">
         {/* Dossier Metadata Card */}
         <GlassCard className="p-6 border border-white/90">
           <h2 className="text-sm font-bold uppercase tracking-wider text-slate-400 mb-4 flex items-center gap-2">
@@ -270,15 +291,18 @@ export const NewInspectionForm: React.FC<NewInspectionFormProps> = ({
           <GlassButton
             type="button"
             variant="secondary"
-            icon={<Save size={15} />}
+            onClick={handleSaveMetadata}
+            disabled={isUpdating}
+            icon={isUpdating ? <Sparkles className="animate-spin" size={15} /> : <Save size={15} />}
           >
-            Save Draft Dossier
+            {isUpdating ? 'Saving...' : 'Save Draft Dossier'}
           </GlassButton>
 
           <GlassButton
             type="submit"
             size="lg"
             variant="primary"
+            disabled={isUpdating}
             icon={<ArrowRight size={16} />}
           >
             Proceed to Identify Product →

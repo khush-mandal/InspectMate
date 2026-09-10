@@ -104,4 +104,33 @@ describe('Inspection Service Integration', () => {
       inspectionService.transitionStatus(inspection._id.toString(), 'COMPLETED', inspectorId)
     ).rejects.toThrow('Invalid state transition');
   });
+
+  it('should update metadata for a draft inspection', async () => {
+    const inspectorId = new mongoose.Types.ObjectId().toString();
+    const inspection = await inspectionService.createInspection({ inspectorId });
+
+    const updated = await inspectionService.updateMetadata(
+      inspection._id.toString(),
+      inspectorId,
+      {
+        productCategory: 'Cosmetics',
+        manufacturer: 'Loreal',
+        notes: 'Test notes'
+      }
+    );
+
+    expect(updated).toBeDefined();
+    expect(updated?.productCategory).toBe('Cosmetics');
+    expect(updated?.manufacturer).toBe('Loreal');
+    expect(updated?.manufacturerNormalized).toBe('loreal');
+    expect(updated?.notes).toBe('Test notes');
+
+    // Audit logs should be created for the update
+    const auditLogs = await AuditLog.find({ 
+      inspection: inspection._id,
+      action: 'INSPECTION_UPDATED'
+    });
+    expect(auditLogs.length).toBe(1);
+    expect(auditLogs[0]?.changes?.length).toBeGreaterThan(0);
+  });
 });

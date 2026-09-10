@@ -55,7 +55,7 @@ export const StatusPill: React.FC<StatusPillProps> = ({
       break;
 
     default:
-      label = status.replace(/_/g, ' ');
+      label = typeof status === 'string' ? status.replace(/_/g, ' ') : 'Unknown';
       break;
   }
 

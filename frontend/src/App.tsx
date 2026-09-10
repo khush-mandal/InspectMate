@@ -26,16 +26,18 @@ import { AnalyticsScreen } from './components/screens/AnalyticsScreen';
 import { EdgeCaseSandboxScreen } from './components/screens/EdgeCaseSandboxScreen';
 
 import { SAMPLE_PRODUCTS } from './data/mockData';
-import { ProductSample, InspectionRecord, UserRole } from './types';
+import { ProductSample, InspectionRecord, UserRole, ProductIdentificationMode } from './types';
 
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ProtectedRoute } from './components/common/ProtectedRoute';
+import { EvidenceCaptureProvider } from './context/EvidenceCaptureContext';
 
 function AppContent() {
   const { user, role, isLoading, logout } = useAuth();
   const [currentScreen, setCurrentScreen] = useState<number>(1);
   const [selectedProduct, setSelectedProduct] = useState<ProductSample>(SAMPLE_PRODUCTS[0]);
   const [inspectionId, setInspectionId] = useState<string>('PRM-2026-0842');
+  const [inputMode, setInputMode] = useState<ProductIdentificationMode>(null);
   const [isOnline, setIsOnline] = useState<boolean>(true);
 
   // Auto-navigate if logged in and on login screen
@@ -136,7 +138,10 @@ function AppContent() {
               {/* Screen 2: Inspector Dashboard */}
               {currentScreen === 2 && (
                 <InspectorDashboard
-                  onStartNewInspection={() => handleNavigate(3)}
+                  onStartNewInspection={(id) => {
+                    setInspectionId(id);
+                    handleNavigate(3);
+                  }}
                   onSelectInspection={handleSelectRecord}
                   onNavigate={handleNavigate}
                 />
@@ -156,7 +161,8 @@ function AppContent() {
           {currentScreen === 4 && (
             <IdentifyProductScreen
               product={selectedProduct}
-              onSelectMethod={() => {}}
+              inspectionId={inspectionId}
+              onSelectMethod={(method) => setInputMode(method)}
               onNavigate={handleNavigate}
             />
           )}
@@ -304,7 +310,9 @@ function AppContent() {
 export default function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <EvidenceCaptureProvider>
+        <AppContent />
+      </EvidenceCaptureProvider>
     </AuthProvider>
   );
 }

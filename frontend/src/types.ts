@@ -1,3 +1,5 @@
+export type ProductIdentificationMode = 'BARCODE' | 'QR' | 'PHOTO' | 'VIDEO' | null;
+
 export type UserRole = 'inspector' | 'regulator';
 
 export type InspectionStatus = 

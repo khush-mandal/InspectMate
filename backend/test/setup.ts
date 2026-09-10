@@ -23,7 +23,7 @@ beforeAll(async () => {
   for (const modelName in models) {
     await models[modelName].createCollection();
   }
-});
+}, 60000);
 
 beforeEach(async () => {
   const collections = mongoose.connection.collections;

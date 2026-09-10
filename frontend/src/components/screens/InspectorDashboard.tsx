@@ -22,6 +22,7 @@ import { GlassButton } from '../common/GlassButton';
 import { StatusPill } from '../common/StatusPill';
 import { InspectionRecord } from '../../types';
 import { useInspectorDashboard } from '../../hooks/useInspectorDashboard';
+import { useCreateInspection } from '../../hooks/useCreateInspection';
 import { useAuth } from '../../context/AuthContext';
 
 // Extract a memoized component for optimal rendering
@@ -79,7 +80,7 @@ const InspectionRow = React.memo(({
   );
 });
 interface InspectorDashboardProps {
-  onStartNewInspection: () => void;
+  onStartNewInspection: (id: string) => void;
   onSelectInspection: (record: InspectionRecord) => void;
   onNavigate: (screen: number) => void;
 }
@@ -91,6 +92,15 @@ export const InspectorDashboard: React.FC<InspectorDashboardProps> = ({
 }) => {
   const { user } = useAuth();
   const { data, isLoading, error, isOffline, lastUpdated, refresh } = useInspectorDashboard();
+  const { createInspection, isCreating } = useCreateInspection();
+
+  const handleStartNewInspection = async () => {
+    const clientRef = crypto.randomUUID();
+    const newId = await createInspection(clientRef);
+    if (newId) {
+      onStartNewInspection(newId);
+    }
+  };
 
   if (error) {
     return (
@@ -132,7 +142,7 @@ export const InspectorDashboard: React.FC<InspectorDashboardProps> = ({
           )}
           <button 
             onClick={refresh} 
-            disabled={isLoading || isOffline}
+            disabled={isLoading || isOffline || isCreating}
             className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition disabled:opacity-50"
             title="Refresh Dashboard"
           >
@@ -149,12 +159,13 @@ export const InspectorDashboard: React.FC<InspectorDashboardProps> = ({
           </GlassButton>
 
           <GlassButton
-            onClick={onStartNewInspection}
+            onClick={handleStartNewInspection}
             variant="primary"
             size="md"
-            icon={<PlusCircle size={16} />}
+            icon={isCreating ? <RefreshCw size={16} className="animate-spin" /> : <PlusCircle size={16} />}
+            disabled={isCreating || isOffline}
           >
-            + New Inspection
+            {isCreating ? 'Creating...' : '+ New Inspection'}
           </GlassButton>
         </div>
       </div>
