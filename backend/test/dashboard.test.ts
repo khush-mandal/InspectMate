@@ -20,7 +20,7 @@ describe('Dashboard API', () => {
 
     const inspector = await User.create({
       email: 'dash_inspector@example.com',
-      password: 'hashedpassword',
+      passwordHash: 'hashedpassword',
       name: 'Dash Inspector',
       role: 'inspector'
     });

@@ -1,4 +1,4 @@
-import { Model, Document, FilterQuery, UpdateQuery, ClientSession } from 'mongoose';
+import mongoose, { Model, Document, UpdateQuery, ClientSession } from 'mongoose';
 
 export class BaseRepository<T extends Document> {
   protected model: Model<T>;
@@ -18,14 +18,14 @@ export class BaseRepository<T extends Document> {
     return query.exec() as Promise<T | null>;
   }
 
-  async findOne(filter: FilterQuery<T>, lean = true): Promise<T | null> {
+  async findOne(filter: Record<string, any>, lean = true): Promise<T | null> {
     const query = this.model.findOne(filter);
     if (lean) query.lean();
     return query.exec() as Promise<T | null>;
   }
 
   async find(
-    filter: FilterQuery<T>,
+    filter: Record<string, any>,
     options: { page?: number; limit?: number; sort?: Record<string, 1 | -1> } = {},
     lean = true
   ): Promise<{ data: T[]; total: number }> {
@@ -57,7 +57,7 @@ export class BaseRepository<T extends Document> {
     }).exec();
   }
 
-  async exists(filter: FilterQuery<T>): Promise<boolean> {
+  async exists(filter: Record<string, any>): Promise<boolean> {
     const doc = await this.model.exists(filter);
     return !!doc;
   }

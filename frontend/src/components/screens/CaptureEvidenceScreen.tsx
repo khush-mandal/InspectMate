@@ -4,6 +4,7 @@ import { ProductSample } from '../../types';
 import { CaptureDashboard } from '../evidence-capture/CaptureDashboard';
 import { CameraScreen } from '../evidence-capture/CameraScreen';
 import { BarcodeScannerModal } from '../evidence-capture/BarcodeScannerModal';
+import { SyncStatusBar } from '../evidence-capture/SyncStatusBar';
 import { useEvidenceCapture } from '../../context/EvidenceCaptureContext';
 import { GlassButton } from '../common/GlassButton';
 import { CaptureSlotId } from '../../types/capture.types';
@@ -24,8 +25,6 @@ export const CaptureEvidenceScreen: React.FC<CaptureEvidenceScreenProps> = ({
 
   // Initialize session when screen mounts
   useEffect(() => {
-    // We assume an inspectionId is already present in App context, but we use product.id + timestamp as fallback if needed.
-    // Or we rely on the App context having already set a session. For now, we'll start one based on product ID to simulate.
     startCaptureSession(`INS-${product.id}`);
   }, [product.id, startCaptureSession]);
 
@@ -38,7 +37,7 @@ export const CaptureEvidenceScreen: React.FC<CaptureEvidenceScreenProps> = ({
             Capture Evidence
           </h1>
           <p className="text-sm text-slate-600 mt-1">
-            Guided capture for statutory declarations.
+            Guided capture for statutory commodity declarations with offline durability.
           </p>
         </div>
 
@@ -63,6 +62,9 @@ export const CaptureEvidenceScreen: React.FC<CaptureEvidenceScreenProps> = ({
         </div>
       </div>
 
+      {/* Offline Awareness & Synchronization Status Bar */}
+      <SyncStatusBar />
+
       {/* Optional: Show Barcode Result */}
       {barcodeResult && (
         <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center justify-between text-sm">
@@ -77,7 +79,7 @@ export const CaptureEvidenceScreen: React.FC<CaptureEvidenceScreenProps> = ({
       )}
 
       {/* Evidence Capture Module Dashboard */}
-      <div className="mt-8">
+      <div className="mt-6">
         <CaptureDashboard 
           onCaptureRequested={(slotId: CaptureSlotId) => selectSlot(slotId)} 
         />
@@ -87,7 +89,7 @@ export const CaptureEvidenceScreen: React.FC<CaptureEvidenceScreenProps> = ({
       {currentSlot && (
         <CameraScreen 
           slotId={currentSlot} 
-          onClose={() => selectSlot(null as any)} 
+          onClose={() => selectSlot(null)} 
         />
       )}
 

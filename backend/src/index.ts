@@ -6,15 +6,17 @@ import { connectDB } from './db/connection';
 import { logger } from './utils/logger';
 import authRoutes, { seedUsers } from './routes/auth';
 import inspectionsRoutes from './routes/inspections';
+import evidenceRoutes from './routes/evidence';
 
 const app = express();
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
 
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/inspections', inspectionsRoutes);
+app.use('/api/evidence', evidenceRoutes);
 
 // Database Health Check
 app.get('/api/health', async (req, res) => {

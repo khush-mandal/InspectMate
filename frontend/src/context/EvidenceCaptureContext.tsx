@@ -1,14 +1,16 @@
-import React, { createContext, useContext, useState, useCallback, useMemo, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from 'react';
 import { 
   CaptureSlotId, 
   CaptureMode, 
-  EvidenceItem, 
+  LocalEvidenceRecord, 
   ValidationResult, 
   BarcodeResult,
-  CaptureRequirement
+  CaptureRequirement,
+  SyncSummary
 } from '../types/capture.types';
-import { saveEvidenceLocally, getEvidenceForInspection, deleteEvidenceLocally } from '../services/evidenceStorage.service';
-import { uploadEvidenceAPI } from '../services/evidenceApi.service';
+import { evidenceRepository, SaveEvidenceInput } from '../services/EvidenceRepository';
+import { syncCoordinator } from '../services/sync/SyncCoordinator';
+import { useAuth } from './AuthContext';
 
 export const CAPTURE_REQUIREMENTS: CaptureRequirement[] = [
   { id: 'FRONT', label: '1. Front (PDP)', description: 'Capture the front of the package.', required: true },
@@ -18,19 +20,23 @@ export const CAPTURE_REQUIREMENTS: CaptureRequirement[] = [
 
 interface EvidenceCaptureState {
   inspectionId: string;
-  evidence: Record<string, EvidenceItem>;
+  evidence: Record<string, LocalEvidenceRecord>;
   currentSlot: CaptureSlotId | null;
   captureMode: CaptureMode | null;
   barcodeResult: BarcodeResult | null;
+  syncSummary: SyncSummary;
+  isSyncing: boolean;
 }
 
 interface EvidenceCaptureContextType extends EvidenceCaptureState {
   startCaptureSession: (inspectionId: string) => void;
-  selectSlot: (slotId: CaptureSlotId) => void;
+  selectSlot: (slotId: CaptureSlotId | null) => void;
   setCaptureMode: (mode: CaptureMode | null) => void;
-  acceptEvidence: (item: EvidenceItem) => void;
-  removeEvidence: (slotId: CaptureSlotId) => void;
+  acceptEvidence: (input: Omit<SaveEvidenceInput, 'userId'>) => Promise<void>;
+  retryEvidence: (slotId: CaptureSlotId) => Promise<void>;
+  removeEvidence: (slotId: CaptureSlotId) => Promise<void>;
   setBarcodeResult: (result: BarcodeResult | null) => void;
+  syncNow: () => Promise<void>;
   resetSession: () => void;
   summary: {
     requiredCompleted: number;
@@ -44,36 +50,66 @@ interface EvidenceCaptureContextType extends EvidenceCaptureState {
 const EvidenceCaptureContext = createContext<EvidenceCaptureContextType | undefined>(undefined);
 
 export const EvidenceCaptureProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const { user, token } = useAuth();
+  const userId = user?.id || 'guest_user';
+
   const [state, setState] = useState<EvidenceCaptureState>({
     inspectionId: '',
     evidence: {},
     currentSlot: null,
     captureMode: null,
-    barcodeResult: null
+    barcodeResult: null,
+    syncSummary: {
+      total: 0,
+      synced: 0,
+      pending: 0,
+      syncing: 0,
+      failed: 0,
+      localOnly: 0,
+      isFullySynced: true
+    },
+    isSyncing: false
   });
 
-  const startCaptureSession = useCallback(async (inspectionId: string) => {
-    // Load offline evidence if any exists for this inspection
-    const offlineEvidence = await getEvidenceForInspection(inspectionId);
-    const evidenceMap: Record<string, EvidenceItem> = {};
-    offlineEvidence.forEach(e => {
-      // Recreate Object URLs for files if they were stored (for preview)
-      if (e.file && !e.localUri.startsWith('blob:')) {
-         e.localUri = URL.createObjectURL(e.file);
-      }
-      evidenceMap[e.slotId] = e;
+  // Sync coordinator session setup
+  useEffect(() => {
+    syncCoordinator.setSession(userId, token);
+  }, [userId, token]);
+
+  const loadEvidenceForInspection = useCallback(async (inspectionId: string) => {
+    if (!inspectionId) return;
+    const items = await evidenceRepository.getEvidenceForInspection(inspectionId, userId);
+    const map: Record<string, LocalEvidenceRecord> = {};
+    items.forEach(item => {
+      map[item.slotId] = item;
     });
 
-    setState({
+    const summary = await syncCoordinator.getSyncSummary(inspectionId);
+
+    setState(prev => ({
+      ...prev,
       inspectionId,
-      evidence: evidenceMap,
-      currentSlot: null,
-      captureMode: null,
-      barcodeResult: null
-    });
-  }, []);
+      evidence: map,
+      syncSummary: summary,
+      isSyncing: summary.syncing > 0
+    }));
+  }, [userId]);
 
-  const selectSlot = useCallback((slotId: CaptureSlotId) => {
+  // Subscribe to real-time sync coordinator events
+  useEffect(() => {
+    const unsubscribe = syncCoordinator.subscribe(() => {
+      if (state.inspectionId) {
+        loadEvidenceForInspection(state.inspectionId);
+      }
+    });
+    return unsubscribe;
+  }, [state.inspectionId, loadEvidenceForInspection]);
+
+  const startCaptureSession = useCallback((inspectionId: string) => {
+    loadEvidenceForInspection(inspectionId);
+  }, [loadEvidenceForInspection]);
+
+  const selectSlot = useCallback((slotId: CaptureSlotId | null) => {
     setState(prev => ({ ...prev, currentSlot: slotId }));
   }, []);
 
@@ -81,66 +117,64 @@ export const EvidenceCaptureProvider: React.FC<{ children: ReactNode }> = ({ chi
     setState(prev => ({ ...prev, captureMode: mode }));
   }, []);
 
-  const acceptEvidence = useCallback(async (item: EvidenceItem) => {
-    // 1. Save locally to IndexedDB for offline support
-    await saveEvidenceLocally(item);
+  const acceptEvidence = useCallback(async (input: Omit<SaveEvidenceInput, 'userId'>) => {
+    const savedRecord = await evidenceRepository.saveEvidence({
+      ...input,
+      userId
+    });
 
-    // 2. Update state to reflect it's pending
     setState(prev => ({
       ...prev,
       evidence: {
         ...prev.evidence,
-        [item.slotId]: item
+        [savedRecord.slotId]: savedRecord
       },
       currentSlot: null,
       captureMode: null
     }));
 
-    // 3. Attempt Background Sync/Upload
-    try {
-      const result = await uploadEvidenceAPI(item);
-      const updatedItem = { 
-        ...item, 
-        syncStatus: 'SYNCED' as const, 
-        serverEvidenceId: result.serverEvidenceId 
-      };
-      await saveEvidenceLocally(updatedItem);
-      
-      setState(prev => ({
-        ...prev,
-        evidence: {
-          ...prev.evidence,
-          [updatedItem.slotId]: updatedItem
-        }
-      }));
-    } catch (err) {
-      const failedItem = { ...item, syncStatus: 'SYNC_FAILED' as const };
-      await saveEvidenceLocally(failedItem);
-      setState(prev => ({
-        ...prev,
-        evidence: {
-          ...prev.evidence,
-          [failedItem.slotId]: failedItem
-        }
-      }));
+    if (input.inspectionId) {
+      loadEvidenceForInspection(input.inspectionId);
     }
-  }, []);
+  }, [userId, loadEvidenceForInspection]);
+
+  const retryEvidence = useCallback(async (slotId: CaptureSlotId) => {
+    const item = state.evidence[slotId];
+    if (item) {
+      await evidenceRepository.retryFailedEvidence(item.clientEvidenceId, userId);
+      if (state.inspectionId) {
+        loadEvidenceForInspection(state.inspectionId);
+      }
+    }
+  }, [state.evidence, state.inspectionId, userId, loadEvidenceForInspection]);
 
   const removeEvidence = useCallback(async (slotId: CaptureSlotId) => {
     const item = state.evidence[slotId];
     if (item) {
-      await deleteEvidenceLocally(item.evidenceId);
+      await evidenceRepository.removeEvidence(item.clientEvidenceId);
     }
     setState(prev => {
       const newEvidence = { ...prev.evidence };
       delete newEvidence[slotId];
       return { ...prev, evidence: newEvidence };
     });
-  }, [state.evidence]);
+    if (state.inspectionId) {
+      loadEvidenceForInspection(state.inspectionId);
+    }
+  }, [state.evidence, state.inspectionId, loadEvidenceForInspection]);
 
   const setBarcodeResult = useCallback((result: BarcodeResult | null) => {
     setState(prev => ({ ...prev, barcodeResult: result }));
   }, []);
+
+  const syncNow = useCallback(async () => {
+    setState(prev => ({ ...prev, isSyncing: true }));
+    const summary = await evidenceRepository.syncNow();
+    if (state.inspectionId) {
+      await loadEvidenceForInspection(state.inspectionId);
+    }
+    setState(prev => ({ ...prev, syncSummary: summary, isSyncing: false }));
+  }, [state.inspectionId, loadEvidenceForInspection]);
 
   const resetSession = useCallback(() => {
     setState({
@@ -148,7 +182,17 @@ export const EvidenceCaptureProvider: React.FC<{ children: ReactNode }> = ({ chi
       evidence: {},
       currentSlot: null,
       captureMode: null,
-      barcodeResult: null
+      barcodeResult: null,
+      syncSummary: {
+        total: 0,
+        synced: 0,
+        pending: 0,
+        syncing: 0,
+        failed: 0,
+        localOnly: 0,
+        isFullySynced: true
+      },
+      isSyncing: false
     });
   }, []);
 
@@ -189,8 +233,10 @@ export const EvidenceCaptureProvider: React.FC<{ children: ReactNode }> = ({ chi
       selectSlot,
       setCaptureMode,
       acceptEvidence,
+      retryEvidence,
       removeEvidence,
       setBarcodeResult,
+      syncNow,
       resetSession,
       summary
     }}>
