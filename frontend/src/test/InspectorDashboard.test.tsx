@@ -6,12 +6,15 @@ import { InspectorDashboard } from '../components/screens/InspectorDashboard';
 import { useInspectorDashboard } from '../hooks/useInspectorDashboard';
 import { useAuth } from '../context/AuthContext';
 
+import { useCreateInspection } from '../hooks/useCreateInspection';
+
 vi.mock('../hooks/useInspectorDashboard');
 vi.mock('../context/AuthContext');
 vi.mock('../hooks/useCreateInspection');
 
 const mockUseInspectorDashboard = useInspectorDashboard as any;
 const mockUseAuth = useAuth as any;
+const mockUseCreateInspection = useCreateInspection as any;
 
 describe('InspectorDashboard', () => {
   const mockOnStartNewInspection = vi.fn();
@@ -22,6 +25,11 @@ describe('InspectorDashboard', () => {
     vi.clearAllMocks();
     mockUseAuth.mockReturnValue({
       user: { name: 'Test Inspector' }
+    });
+    mockUseCreateInspection.mockReturnValue({
+      createInspection: vi.fn().mockResolvedValue('NEW-INS-01'),
+      isCreating: false,
+      error: null
     });
   });
 

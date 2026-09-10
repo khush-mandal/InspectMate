@@ -132,22 +132,17 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ slotId, onClose }) =
     setValidation({ status: 'VALID' });
   };
 
-  const handleAccept = () => {
-    if (validation?.status === 'VALID' && capturedFile && previewUri) {
-      const item: EvidenceItem = {
-        evidenceId: crypto.randomUUID(),
+  const handleAccept = async () => {
+    if (validation?.status === 'VALID' && capturedFile) {
+      await acceptEvidence({
         inspectionId,
         slotId,
         mode: capturedFile.type.startsWith('video') ? 'VIDEO' : 'PHOTO',
-        localUri: previewUri,
         file: capturedFile,
         mimeType: capturedFile.type,
         fileSize: capturedFile.size,
-        capturedAt: Date.now(),
-        validationResult: validation,
-        syncStatus: 'SYNC_PENDING'
-      };
-      acceptEvidence(item);
+        validationResult: validation
+      });
       onClose();
     }
   };

@@ -23,7 +23,7 @@ export interface IExtractionRun extends Document {
   inputEvidenceIds: Types.ObjectId[];
   processingStatus: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED';
   provider: string;
-  model: string;
+  model: any;
   modelVersion: string;
   extractionFields: IExtractionField[];
   overallConfidence?: number;

@@ -51,17 +51,14 @@ AuditLogSchema.index({ entityType: 1, entityId: 1, createdAt: -1 });
 AuditLogSchema.index({ actorId: 1, createdAt: -1 });
 
 // Prevent standard deletions to enforce append-only
-AuditLogSchema.pre('deleteOne', function(next) {
-  next(new Error('Audit logs cannot be deleted'));
+AuditLogSchema.pre('deleteOne', function() {
+  throw new Error('Audit logs cannot be deleted');
 });
-AuditLogSchema.pre('deleteMany', function(next) {
-  next(new Error('Audit logs cannot be deleted'));
+AuditLogSchema.pre('deleteMany', function() {
+  throw new Error('Audit logs cannot be deleted');
 });
-AuditLogSchema.pre('findOneAndDelete', function(next) {
-  next(new Error('Audit logs cannot be deleted'));
-});
-AuditLogSchema.pre('findOneAndRemove', function(next) {
-  next(new Error('Audit logs cannot be deleted'));
+AuditLogSchema.pre('findOneAndDelete', function() {
+  throw new Error('Audit logs cannot be deleted');
 });
 
 export const AuditLog = mongoose.model<IAuditLog>('AuditLog', AuditLogSchema);

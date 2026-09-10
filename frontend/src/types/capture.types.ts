@@ -13,6 +13,40 @@ export type CaptureStatus =
   | 'SYNC_PENDING'
   | 'SYNC_FAILED';
 
+export type SyncStatus = 
+  | 'LOCAL_ONLY' 
+  | 'SYNC_PENDING' 
+  | 'SYNCING' 
+  | 'SYNCED' 
+  | 'SYNC_FAILED';
+
+export type SyncJobStatus = 
+  | 'QUEUED' 
+  | 'READY' 
+  | 'PROCESSING' 
+  | 'SUCCEEDED' 
+  | 'FAILED' 
+  | 'CANCELLED';
+
+export type SyncOperation = 
+  | 'UPLOAD_EVIDENCE' 
+  | 'SYNC_INSPECTION';
+
+export type SyncErrorCategory = 
+  | 'RETRYABLE'
+  | 'NON_RETRYABLE'
+  | 'AUTHENTICATION'
+  | 'AUTHORIZATION'
+  | 'VALIDATION'
+  | 'CONFLICT'
+  | 'NETWORK'
+  | 'TIMEOUT'
+  | 'SERVER'
+  | 'STORAGE'
+  | 'FILE_NOT_FOUND'
+  | 'INTEGRITY_FAILURE'
+  | 'UNKNOWN';
+
 export interface CaptureRequirement {
   id: CaptureSlotId;
   label: string;
@@ -42,22 +76,94 @@ export interface ValidationResult {
   }>;
 }
 
-export interface EvidenceItem {
-  evidenceId: string;
+export interface LocalEvidenceRecord {
+  id: string; // local primary key (UUID)
+  clientEvidenceId: string;
   inspectionId: string;
   slotId: CaptureSlotId;
   mode: CaptureMode;
-  localUri: string; // Object URL or file reference
-  file?: File; // Store the actual file in memory temporarily (since it's a web app and we need it for upload)
+  localMediaId: string; // key in MediaBlobStore
+  localUri?: string; // transient preview object URL in runtime memory
   mimeType: string;
   fileSize: number;
   width?: number;
   height?: number;
-  duration?: number;
-  capturedAt: number; // timestamp
-  validationResult: ValidationResult;
-  syncStatus: 'LOCAL_ONLY' | 'SYNC_PENDING' | 'SYNCING' | 'SYNCED' | 'SYNC_FAILED';
+  durationMs?: number;
+  sha256: string;
+  capturedAt: number; // UTC timestamp of capture
+  localCreatedAt: number; // UTC timestamp of local persistence
   serverEvidenceId?: string;
+  serverUploadedAt?: string;
+  syncStatus: SyncStatus;
+  uploadAttempts: number;
+  lastAttemptAt?: number;
+  nextRetryAt?: number;
+  lastErrorCode?: string;
+  lastErrorMessage?: string;
+  lastErrorCategory?: SyncErrorCategory;
+  supersedesClientEvidenceId?: string;
+  isActive: boolean;
+  userId: string;
+  validationResult: ValidationResult;
+}
+
+// Backward-compatibility alias for UI consumption
+export type EvidenceItem = LocalEvidenceRecord;
+
+export interface SyncJob {
+  jobId: string;
+  entityType: 'EVIDENCE' | 'INSPECTION';
+  entityId: string; // clientEvidenceId or inspectionId
+  operation: SyncOperation;
+  inspectionId: string;
+  clientRequestId: string;
+  priority: number; // 100 for inspection creation, 80 for required evidence, 50 for optional
+  attemptCount: number;
+  status: SyncJobStatus;
+  createdAt: number;
+  updatedAt: number;
+  nextAttemptAt: number;
+  lockedAt?: number;
+  lockedBy?: string;
+  lastError?: {
+    category: SyncErrorCategory;
+    code: string;
+    message: string;
+    retryable: boolean;
+    timestamp: number;
+  };
+  dedupeKey: string;
+  userId: string;
+}
+
+export interface SyncEvent {
+  id?: number;
+  timestamp: number;
+  entityType: 'EVIDENCE' | 'INSPECTION';
+  entityId: string;
+  inspectionId: string;
+  eventType: 
+    | 'CAPTURED' 
+    | 'VALIDATED' 
+    | 'PERSISTED' 
+    | 'QUEUED' 
+    | 'SYNC_STARTED' 
+    | 'SYNC_SUCCEEDED' 
+    | 'SYNC_FAILED' 
+    | 'RETRY_SCHEDULED' 
+    | 'SUPERSEDED';
+  details?: Record<string, any>;
+  userId: string;
+}
+
+export interface SyncSummary {
+  total: number;
+  synced: number;
+  pending: number;
+  syncing: number;
+  failed: number;
+  localOnly: number;
+  isFullySynced: boolean;
 }
 
 export interface BarcodeResult {
