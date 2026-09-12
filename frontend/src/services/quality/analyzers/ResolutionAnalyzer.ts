@@ -1,4 +1,5 @@
-import { QualityPolicyConfig, QualityIssue } from '../QualityPolicy';
+import { QualityPolicyConfig } from '../QualityPolicy';
+import { QualityIssue } from '../../../types/capture.types';
 
 export interface ResolutionResult {
   width: number;

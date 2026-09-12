@@ -33,6 +33,16 @@ export interface IEvidence extends Document {
     issues?: string[];
     evaluatedAt?: Date;
   };
+  frameMetadata?: {
+    parentVideoEvidenceId: string;
+    frameNumber: number;
+    timestampMs: number;
+    targetField: string;
+    selectionScore: number;
+    selectionReason: string;
+    algorithmVersion: string;
+    policyVersion: string;
+  };
   boundingInformation?: Record<string, any>;
   createdAt: Date;
   updatedAt: Date;
@@ -70,6 +80,16 @@ const EvidenceSchema = new Schema(
       coverageState: { type: String },
       issues: [{ type: String }],
       evaluatedAt: { type: Date }
+    },
+    frameMetadata: {
+      parentVideoEvidenceId: { type: String },
+      frameNumber: { type: Number },
+      timestampMs: { type: Number },
+      targetField: { type: String },
+      selectionScore: { type: Number },
+      selectionReason: { type: String },
+      algorithmVersion: { type: String },
+      policyVersion: { type: String }
     },
     boundingInformation: { type: Schema.Types.Mixed }
   },

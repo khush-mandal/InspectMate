@@ -1,5 +1,5 @@
 import { QualityPolicyConfig } from '../QualityPolicy';
-import { QualityIssue } from '../../types/capture.types';
+import { QualityIssue } from '../../../types/capture.types';
 
 export interface GlareResult {
   glareAreaRatio: number;

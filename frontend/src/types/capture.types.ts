@@ -106,6 +106,16 @@ export interface LocalEvidenceRecord {
   userId: string;
   validationResult: ValidationResult;
   qualityAssessment?: QualityAssessment;
+  frameMetadata?: {
+    parentVideoEvidenceId: string;
+    frameNumber: number;
+    timestampMs: number;
+    targetField: string;
+    selectionScore: number;
+    selectionReason: string;
+    algorithmVersion: string;
+    policyVersion: string;
+  };
 }
 
 // Backward-compatibility alias for UI consumption
