@@ -5,6 +5,8 @@ import { CaptureSlotId, EvidenceItem, ValidationResult, QualityAssessment } from
 import { GlassButton } from '../common/GlassButton';
 import { QualityEngine } from '../../services/quality/QualityEngine';
 import { QualityResultCard } from './QualityResultCard';
+import { VideoProcessingOverlay } from './VideoProcessingOverlay';
+import { VideoProcessingJob } from '../../types/video.types';
 
 interface CameraScreenProps {
   slotId: CaptureSlotId;
@@ -21,6 +23,7 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ slotId, onClose }) =
   const [qualityAssessment, setQualityAssessment] = useState<QualityAssessment | null>(null);
   const [isProcessingQuality, setIsProcessingQuality] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [showVideoProcessing, setShowVideoProcessing] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -132,6 +135,9 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ slotId, onClose }) =
       } finally {
         setIsProcessingQuality(false);
       }
+    } else if (isValid && file.type.startsWith('video/')) {
+      // Trigger Video Processing Overlay instead of immediate acceptance
+      setShowVideoProcessing(true);
     }
   };
 
@@ -172,7 +178,24 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ slotId, onClose }) =
     setValidation(null);
     setQualityAssessment(null);
     setIsProcessingQuality(false);
+    setShowVideoProcessing(false);
     startCamera(); // Restart stream
+  };
+
+  const handleVideoProcessingComplete = async (job: VideoProcessingJob) => {
+    if (capturedFile) {
+      // Accept the original video file alongside the generated frames
+      await acceptEvidence({
+        inspectionId,
+        slotId,
+        mode: 'VIDEO',
+        file: capturedFile,
+        mimeType: capturedFile.type,
+        fileSize: capturedFile.size,
+        validationResult: { status: 'VALID' }
+      });
+      onClose();
+    }
   };
 
   const triggerGallery = () => {
@@ -196,6 +219,18 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ slotId, onClose }) =
           {requirement?.label}
         </div>
       </div>
+
+      {showVideoProcessing && capturedFile && (
+        <VideoProcessingOverlay
+          videoFile={capturedFile}
+          videoId={crypto.randomUUID()}
+          slotId={slotId}
+          inspectionId={inspectionId}
+          userId={'current-user-id'} // Should come from context
+          onComplete={handleVideoProcessingComplete}
+          onCancel={handleRetake}
+        />
+      )}
 
       {!previewUri ? (
         <>
