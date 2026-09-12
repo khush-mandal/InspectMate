@@ -1,8 +1,10 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { Camera, X, Check, RotateCw, Video, Image as ImageIcon } from 'lucide-react';
 import { useEvidenceCapture, CAPTURE_REQUIREMENTS } from '../../context/EvidenceCaptureContext';
-import { CaptureSlotId, EvidenceItem, ValidationResult } from '../../types/capture.types';
+import { CaptureSlotId, EvidenceItem, ValidationResult, QualityAssessment } from '../../types/capture.types';
 import { GlassButton } from '../common/GlassButton';
+import { QualityEngine } from '../../services/quality/QualityEngine';
+import { QualityResultCard } from './QualityResultCard';
 
 interface CameraScreenProps {
   slotId: CaptureSlotId;
@@ -16,6 +18,8 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ slotId, onClose }) =
   const [previewUri, setPreviewUri] = useState<string | null>(null);
   const [capturedFile, setCapturedFile] = useState<File | null>(null);
   const [validation, setValidation] = useState<ValidationResult | null>(null);
+  const [qualityAssessment, setQualityAssessment] = useState<QualityAssessment | null>(null);
+  const [isProcessingQuality, setIsProcessingQuality] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -102,23 +106,36 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ slotId, onClose }) =
     }
   };
 
-  const processCapturedFile = (file: File) => {
+  const processCapturedFile = async (file: File) => {
     // 1. Create preview
     const url = URL.createObjectURL(file);
     setPreviewUri(url);
     setCapturedFile(file);
     
-    // 2. Validate
-    validateFile(file);
+    // 2. Validate basic file rules
+    const isValid = validateFile(file);
 
     // Stop camera
     if (stream) {
       stream.getTracks().forEach(track => track.stop());
       setStream(null);
     }
+
+    // 3. Run Quality Gate (if valid and photo)
+    if (isValid && file.type.startsWith('image/')) {
+      setIsProcessingQuality(true);
+      try {
+        const assessment = await QualityEngine.analyze(file);
+        setQualityAssessment(assessment);
+      } catch (err) {
+        console.error("Quality Engine Error:", err);
+      } finally {
+        setIsProcessingQuality(false);
+      }
+    }
   };
 
-  const validateFile = (file: File) => {
+  const validateFile = (file: File): boolean => {
     const MAX_SIZE_MB = 10;
     const sizeMB = file.size / (1024 * 1024);
     if (sizeMB > MAX_SIZE_MB) {
@@ -126,10 +143,11 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ slotId, onClose }) =
         status: 'INVALID',
         reasons: [{ code: 'FILE_TOO_LARGE', message: 'Image file is too large.' }]
       });
-      return;
+      return false;
     }
     // Assume Valid
     setValidation({ status: 'VALID' });
+    return true;
   };
 
   const handleAccept = async () => {
@@ -141,7 +159,8 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ slotId, onClose }) =
         file: capturedFile,
         mimeType: capturedFile.type,
         fileSize: capturedFile.size,
-        validationResult: validation
+        validationResult: validation,
+        qualityAssessment: qualityAssessment || undefined
       });
       onClose();
     }
@@ -151,6 +170,8 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ slotId, onClose }) =
     setPreviewUri(null);
     setCapturedFile(null);
     setValidation(null);
+    setQualityAssessment(null);
+    setIsProcessingQuality(false);
     startCamera(); // Restart stream
   };
 
@@ -259,17 +280,20 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ slotId, onClose }) =
             </div>
           </div>
 
-          {/* Prominent Action Area */}
-          <div className="p-6 shrink-0 space-y-4">
-            {validation?.status === 'VALID' && (
-              <button 
-                onClick={handleAccept} 
-                className="w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white rounded-2xl font-bold text-lg shadow-lg hover:shadow-emerald-500/25 active:scale-[0.98] transition-all flex justify-center items-center gap-3 border border-emerald-400/50"
-              >
-                <Check size={24} /> 
-                Submit for {requirement?.label.split('.')[1]?.trim() || requirement?.id}
-              </button>
-            )}
+            {/* Prominent Action Area */}
+            <div className="p-6 shrink-0 space-y-4">
+              <QualityResultCard assessment={qualityAssessment} isProcessing={isProcessingQuality} />
+
+              {validation?.status === 'VALID' && qualityAssessment?.status !== 'RECAPTURE' && (
+                <button 
+                  onClick={handleAccept} 
+                  disabled={isProcessingQuality}
+                  className={`w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white rounded-2xl font-bold text-lg shadow-lg hover:shadow-emerald-500/25 active:scale-[0.98] transition-all flex justify-center items-center gap-3 border border-emerald-400/50 ${isProcessingQuality ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  <Check size={24} /> 
+                  {isProcessingQuality ? 'Checking quality...' : `Submit for ${requirement?.label.split('.')[1]?.trim() || requirement?.id}`}
+                </button>
+              )}
             
             <button 
               onClick={handleRetake} 

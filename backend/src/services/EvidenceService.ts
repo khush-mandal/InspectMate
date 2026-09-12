@@ -2,6 +2,7 @@ import { Types } from 'mongoose';
 import { evidenceRepository } from '../db/repositories/EvidenceRepository';
 import { inspectionRepository } from '../db/repositories/InspectionRepository';
 import { auditLogRepository } from '../db/repositories/AuditLogRepository';
+import { qualityAssessmentRepository } from '../db/repositories/QualityAssessmentRepository';
 import { IEvidence, EvidenceType, CaptureSide } from '../db/models/Evidence';
 import { withTransaction } from '../db/transaction';
 import { logger } from '../utils/logger';
@@ -22,6 +23,7 @@ export interface CreateEvidenceDTO {
   storageProvider?: string;
   storageKey?: string;
   storageBucket?: string;
+  qualityAssessment?: any;
 }
 
 export class EvidenceService {
@@ -74,6 +76,28 @@ export class EvidenceService {
       };
 
       const evidence = await evidenceRepository.create(evidenceData, session);
+
+      if (data.qualityAssessment) {
+        await qualityAssessmentRepository.create({
+          evidenceId: evidence._id as Types.ObjectId,
+          inspectionId: new Types.ObjectId(data.inspectionId),
+          assessmentId: data.qualityAssessment.assessmentId,
+          status: data.qualityAssessment.status,
+          score: data.qualityAssessment.score,
+          algorithmVersion: data.qualityAssessment.algorithmVersion,
+          policyVersion: data.qualityAssessment.policyVersion,
+          checks: data.qualityAssessment.checks,
+          issues: data.qualityAssessment.issues,
+          diagnosticRegions: data.qualityAssessment.diagnosticRegions,
+          recommendations: data.qualityAssessment.recommendations,
+          processedAt: new Date(data.qualityAssessment.processedAt),
+          processingDurationMs: data.qualityAssessment.processingDurationMs
+        }, session);
+
+        // Update evidence with quick reference status
+        evidence.qualityAssessment = data.qualityAssessment.status;
+        await evidence.save({ session });
+      }
 
       // Increment evidence count on inspection
       await inspectionRepository.incrementEvidenceCount(data.inspectionId, session);

@@ -105,6 +105,7 @@ export interface LocalEvidenceRecord {
   isActive: boolean;
   userId: string;
   validationResult: ValidationResult;
+  qualityAssessment?: QualityAssessment;
 }
 
 // Backward-compatibility alias for UI consumption
@@ -170,4 +171,39 @@ export interface BarcodeResult {
   rawValue: string;
   symbology: string;
   capturedAt: number;
+}
+
+export type QualityAssessmentStatus = 'ACCEPT' | 'RECAPTURE' | 'REVIEW' | 'PROCESSING' | 'ERROR' | 'UNKNOWN';
+
+export type QualityIssueSeverity = 'HIGH' | 'MEDIUM' | 'LOW';
+
+export interface QualityRegion {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface QualityIssue {
+  code: string;
+  category: string;
+  severity: QualityIssueSeverity;
+  message: string;
+  region?: QualityRegion;
+  blocking: boolean;
+  recommendation?: string;
+}
+
+export interface QualityAssessment {
+  assessmentId: string;
+  status: QualityAssessmentStatus;
+  score: number;
+  algorithmVersion: string;
+  policyVersion: string;
+  checks: Record<string, any>;
+  issues: QualityIssue[];
+  diagnosticRegions: QualityRegion[];
+  recommendations: string[];
+  processedAt: number;
+  processingDurationMs: number;
 }

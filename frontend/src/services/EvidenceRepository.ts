@@ -25,6 +25,7 @@ export interface SaveEvidenceInput {
   validationResult: ValidationResult;
   userId: string;
   clientEvidenceId?: string;
+  qualityAssessment?: any;
 }
 
 export class EvidenceRepository {
@@ -58,7 +59,8 @@ export class EvidenceRepository {
       uploadAttempts: 0,
       isActive: true,
       userId: input.userId,
-      validationResult: input.validationResult
+      validationResult: input.validationResult,
+      qualityAssessment: input.qualityAssessment
     };
 
     // 4. Atomic metadata save
