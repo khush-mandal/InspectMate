@@ -85,6 +85,8 @@ export interface ExtractedField {
   };
   extractionMethod: string;
   needsVerification: boolean;
+  barcodeReferenceValue?: string;
+  hasConflict?: boolean;
 }
 
 export interface OCRResult {
@@ -103,6 +105,16 @@ export interface BarcodeResult {
   evidenceId: string;
   format: string;
   rawValue: string;
+  normalizedValue?: string;
+  confidence: number;
+  detectedAt?: Date;
+  boundingBox?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+  lookupStatus?: 'SUCCESS' | 'NOT_FOUND' | 'PENDING' | 'ERROR';
   decodedData?: Record<string, any>;
   createdAt: Date;
   updatedAt: Date;

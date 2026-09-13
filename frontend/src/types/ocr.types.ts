@@ -1,4 +1,5 @@
-import { ExtractedField } from './domain.types';
+import { ExtractedField, BarcodeResult } from './domain.types';
+export type { ExtractedField };
 
 export type FieldTarget = 
   | 'productName'
@@ -50,6 +51,7 @@ export interface ExtractionResult {
   evidenceId: string;
   inspectionId: string;
   fields: ExtractedField[];
+  barcodeResult?: BarcodeResult;
   overallConfidence: number;
   status: 'SUCCESS' | 'PARTIAL' | 'FAILED' | 'RECAPTURE_NEEDED';
   message?: string;

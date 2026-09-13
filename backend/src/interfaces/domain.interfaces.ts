@@ -84,6 +84,8 @@ export interface IExtractedField {
     width: number;
     height: number;
   };
+  barcodeReferenceValue?: string;
+  hasConflict?: boolean;
 }
 
 export interface IOCRResult {
@@ -102,6 +104,16 @@ export interface IBarcodeResult {
   evidenceId: Types.ObjectId;
   format: string;
   rawValue: string;
+  normalizedValue?: string;
+  confidence: number;
+  detectedAt?: Date;
+  boundingBox?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+  lookupStatus?: 'SUCCESS' | 'NOT_FOUND' | 'PENDING' | 'ERROR';
   decodedData?: Record<string, any>;
   createdAt: Date;
   updatedAt: Date;

@@ -14,10 +14,8 @@ describe('Dashboard API', () => {
   let inspectorToken: string;
   let inspectorId: mongoose.Types.ObjectId;
 
-  beforeAll(async () => {
-    mongoServer = await MongoMemoryServer.create();
-    await mongoose.connect(mongoServer.getUri());
-
+  beforeEach(async () => {
+    // MongoMemoryServer and mongoose connect is handled by setup.ts
     const inspector = await User.create({
       email: 'dash_inspector@example.com',
       passwordHash: 'hashedpassword',
@@ -41,8 +39,7 @@ describe('Dashboard API', () => {
   });
 
   afterAll(async () => {
-    await mongoose.disconnect();
-    await mongoServer.stop();
+    // Handled by setup.ts
   });
 
   it('should fetch dashboard data for an inspector', async () => {

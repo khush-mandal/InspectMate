@@ -32,7 +32,7 @@ export class TesseractAdapter implements IOcrEngine {
     }
 
     // Tesseract's recognize takes an image URL, File, Blob, Image, or Canvas
-    let imageSource: string | ImageData | Blob = imageBlob;
+    let imageSource: any = imageBlob;
     let urlToRevoke: string | null = null;
 
     if (imageBlob instanceof Blob) {
@@ -43,7 +43,7 @@ export class TesseractAdapter implements IOcrEngine {
     try {
       const result = await this.worker.recognize(imageSource);
       
-      const lines: OcrLine[] = result.data.lines.map(line => ({
+      const lines: OcrLine[] = (result.data as any).lines?.map((line: any) => ({
         text: line.text,
         confidence: line.confidence,
         bbox: {
