@@ -76,6 +76,18 @@ export interface ValidationResult {
   }>;
 }
 
+export interface FinalizedMediaObject {
+  evidenceId: string;
+  inspectionId: string;
+  localFileId: string;
+  mimeType: string;
+  size: number;
+  sha256: string;
+  createdAt: number;
+  updatedAt: number;
+  syncState: SyncStatus;
+}
+
 export interface LocalEvidenceRecord {
   id: string; // local primary key (UUID)
   clientEvidenceId: string;
@@ -83,6 +95,7 @@ export interface LocalEvidenceRecord {
   slotId: CaptureSlotId;
   mode: CaptureMode;
   localMediaId: string; // key in MediaBlobStore
+  localFileId?: string; // deterministic local file name
   localUri?: string; // transient preview object URL in runtime memory
   mimeType: string;
   fileSize: number;
@@ -128,6 +141,7 @@ export interface SyncJob {
   operation: SyncOperation;
   inspectionId: string;
   clientRequestId: string;
+  idempotencyKey?: string;
   priority: number; // 100 for inspection creation, 80 for required evidence, 50 for optional
   attemptCount: number;
   status: SyncJobStatus;

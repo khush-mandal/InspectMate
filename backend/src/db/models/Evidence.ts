@@ -33,6 +33,8 @@ export interface IEvidence extends Document {
     issues?: string[];
     evaluatedAt?: Date;
   };
+  localFileId?: string;
+  syncStatus?: 'LOCAL_ONLY' | 'SYNC_PENDING' | 'SYNCING' | 'SYNCED' | 'SYNC_FAILED';
   frameMetadata?: {
     parentVideoEvidenceId: string;
     frameNumber: number;
@@ -55,6 +57,12 @@ const EvidenceSchema = new Schema(
     captureSide: { type: String, enum: ['FRONT', 'BACK', 'SIDE', 'TOP', 'BOTTOM', 'UNKNOWN'], default: 'UNKNOWN' },
     sourceEvidence: { type: Schema.Types.ObjectId, ref: 'Evidence' },
     frameNumber: { type: Number, min: 0 },
+    localFileId: { type: String },
+    syncStatus: { 
+      type: String, 
+      enum: ['LOCAL_ONLY', 'SYNC_PENDING', 'SYNCING', 'SYNCED', 'SYNC_FAILED'],
+      default: 'SYNCED'
+    },
     storageProvider: { type: String, required: true },
     storageBucket: { type: String },
     storageKey: { type: String, required: true },

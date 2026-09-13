@@ -12,6 +12,8 @@ const createEvidenceSchema = z.object({
   inspectionId: z.string().min(1),
   clientEvidenceId: z.string().min(1),
   clientRequestId: z.string().optional(),
+  idempotencyKey: z.string().optional(),
+  localFileId: z.string().optional(),
   evidenceType: z.enum(['PHOTO', 'VIDEO', 'BEST_FRAME', 'CROP']),
   captureSide: z.enum(['FRONT', 'BACK', 'SIDE', 'TOP', 'BOTTOM', 'UNKNOWN']).default('UNKNOWN'),
   sha256Hash: z.string().min(1),
@@ -30,14 +32,20 @@ const createEvidenceSchema = z.object({
 router.post('/', authorizeRoles('inspector'), async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.userId;
+    const headerKey = req.headers['idempotency-key'];
+    const idempotencyKey = (Array.isArray(headerKey) ? headerKey[0] : headerKey) || req.body?.idempotencyKey;
     const validatedData = createEvidenceSchema.parse(req.body);
 
     const evidence = await evidenceService.createEvidence({
       inspectorId: userId,
-      ...validatedData
+      ...validatedData,
+      idempotencyKey: idempotencyKey || validatedData.idempotencyKey
     });
 
-    res.status(201).json({
+    const isReplay = Boolean((evidence as any).isIdempotentReplay);
+    const statusCode = isReplay ? 200 : 201;
+
+    res.status(statusCode).json({
       success: true,
       data: {
         id: evidence._id,
@@ -47,7 +55,8 @@ router.post('/', authorizeRoles('inspector'), async (req: AuthRequest, res) => {
         captureSide: evidence.captureSide,
         sha256Hash: evidence.sha256Hash,
         uploadedAt: evidence.uploadedAt,
-        syncStatus: 'SYNCED'
+        syncStatus: 'SYNCED',
+        isIdempotentReplay: isReplay
       }
     });
   } catch (error: any) {

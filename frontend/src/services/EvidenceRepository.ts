@@ -3,13 +3,16 @@ import { mediaBlobStore } from './storage/MediaBlobStore';
 import { syncQueueStore } from './storage/SyncQueueStore';
 import { syncCoordinator } from './sync/SyncCoordinator';
 import { calculateFileSha256 } from '../utils/crypto.utils';
+import { generateDeterministicLocalFileId, generateDeterministicMediaStoreId } from '../utils/naming.utils';
+import { IdempotencyKeyManager } from './sync/IdempotencyKeyManager';
 import { 
   LocalEvidenceRecord, 
   CaptureSlotId, 
   CaptureMode, 
   ValidationResult, 
   SyncJob,
-  SyncSummary
+  SyncSummary,
+  FinalizedMediaObject
 } from '../types/capture.types';
 
 export interface SaveEvidenceInput {
@@ -31,15 +34,23 @@ export interface SaveEvidenceInput {
 export class EvidenceRepository {
   async saveEvidence(input: SaveEvidenceInput): Promise<LocalEvidenceRecord> {
     const clientEvidenceId = input.clientEvidenceId || crypto.randomUUID();
-    const localMediaId = `media_${clientEvidenceId}`;
 
     // 1. Calculate authentic SHA-256 hash from file bytes
     const sha256 = await calculateFileSha256(input.file);
 
-    // 2. Persist large media binary in dedicated MediaBlobStore
+    // 2. Generate deterministic local file name and store ID
+    const localFileId = generateDeterministicLocalFileId(
+      input.inspectionId,
+      input.slotId,
+      sha256,
+      input.mimeType
+    );
+    const localMediaId = generateDeterministicMediaStoreId(localFileId);
+
+    // 3. Persist large media binary in dedicated MediaBlobStore
     await mediaBlobStore.saveBlob(localMediaId, input.file);
 
-    // 3. Create persistent metadata record
+    // 4. Create persistent metadata record
     const record: LocalEvidenceRecord = {
       id: crypto.randomUUID(),
       clientEvidenceId,
@@ -47,6 +58,7 @@ export class EvidenceRepository {
       slotId: input.slotId,
       mode: input.mode,
       localMediaId,
+      localFileId,
       mimeType: input.mimeType,
       fileSize: input.fileSize,
       width: input.width,
@@ -63,11 +75,13 @@ export class EvidenceRepository {
       qualityAssessment: input.qualityAssessment
     };
 
-    // 4. Atomic metadata save
+    // 5. Atomic metadata save
     await localEvidenceStore.saveEvidence(record);
 
-    // 5. Enqueue persistent sync job with deterministic dedupe key
+    // 6. Enqueue persistent sync job with deterministic dedupe key & idempotency key
     const priority = input.slotId === 'FRONT' || input.slotId === 'BACK' ? 80 : 50;
+    const idempotencyKey = IdempotencyKeyManager.generateKey(input.inspectionId, clientEvidenceId, 0);
+
     const syncJob: SyncJob = {
       jobId: `job_${crypto.randomUUID()}`,
       entityType: 'EVIDENCE',
@@ -75,6 +89,7 @@ export class EvidenceRepository {
       operation: 'UPLOAD_EVIDENCE',
       inspectionId: input.inspectionId,
       clientRequestId: record.id,
+      idempotencyKey,
       priority,
       attemptCount: 0,
       status: 'QUEUED',
@@ -87,10 +102,10 @@ export class EvidenceRepository {
 
     await syncQueueStore.enqueueJob(syncJob);
 
-    // 6. Create transient runtime preview URL
+    // 7. Create transient runtime preview URL
     record.localUri = await mediaBlobStore.createPreviewUrl(localMediaId) || undefined;
 
-    // 7. Proactively trigger background sync coordinator if online
+    // 8. Proactively trigger background sync coordinator if online
     syncCoordinator.triggerSync();
 
     return record;
@@ -169,6 +184,20 @@ export class EvidenceRepository {
 
   async syncNow(): Promise<SyncSummary> {
     return syncCoordinator.syncNow();
+  }
+
+  toFinalizedMediaObject(record: LocalEvidenceRecord): FinalizedMediaObject {
+    return {
+      evidenceId: record.serverEvidenceId || record.clientEvidenceId,
+      inspectionId: record.inspectionId,
+      localFileId: record.localFileId || record.localMediaId,
+      mimeType: record.mimeType,
+      size: record.fileSize,
+      sha256: record.sha256,
+      createdAt: record.capturedAt,
+      updatedAt: record.serverUploadedAt ? new Date(record.serverUploadedAt).getTime() : record.localCreatedAt,
+      syncState: record.syncStatus
+    };
   }
 }
 

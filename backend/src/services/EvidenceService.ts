@@ -4,6 +4,7 @@ import { inspectionRepository } from '../db/repositories/InspectionRepository';
 import { auditLogRepository } from '../db/repositories/AuditLogRepository';
 import { qualityAssessmentRepository } from '../db/repositories/QualityAssessmentRepository';
 import { IEvidence, EvidenceType, CaptureSide } from '../db/models/Evidence';
+import { SyncIdempotency } from '../db/models/SyncIdempotency';
 import { withTransaction } from '../db/transaction';
 import { logger } from '../utils/logger';
 
@@ -12,6 +13,8 @@ export interface CreateEvidenceDTO {
   inspectionId: string;
   clientEvidenceId: string;
   clientRequestId?: string;
+  idempotencyKey?: string;
+  localFileId?: string;
   evidenceType: EvidenceType;
   captureSide: CaptureSide;
   sha256Hash: string;
@@ -43,10 +46,24 @@ export class EvidenceService {
 
     const storageKey = data.storageKey || `ins_${data.inspectionId}/ev_${data.clientEvidenceId}`;
 
+    // 0. Explicit Idempotency Check by Idempotency-Key
+    if (data.idempotencyKey) {
+      const existingIdemp = await SyncIdempotency.findOne({ idempotencyKey: data.idempotencyKey }).lean();
+      if (existingIdemp && existingIdemp.evidenceId) {
+        const cachedEvidence = await evidenceRepository.findById(existingIdemp.evidenceId.toString(), false);
+        if (cachedEvidence) {
+          logger.info(`Idempotent evidence upload: returning existing record for key ${data.idempotencyKey}`);
+          (cachedEvidence as any).isIdempotentReplay = true;
+          return cachedEvidence;
+        }
+      }
+    }
+
     // 1. Idempotency Check by storageKey / clientEvidenceId
     const existingByKey = await evidenceRepository.findByStorageKey(storageKey, false);
     if (existingByKey) {
       logger.info(`Idempotent evidence upload: returning existing record for key ${storageKey}`);
+      (existingByKey as any).isIdempotentReplay = true;
       return existingByKey;
     }
 
@@ -54,6 +71,7 @@ export class EvidenceService {
     const existingByHash = await evidenceRepository.findBySha256AndInspection(data.inspectionId, data.sha256Hash, false);
     if (existingByHash) {
       logger.info(`Idempotent evidence upload: returning existing record with matching SHA-256 for inspection ${data.inspectionId}`);
+      (existingByHash as any).isIdempotentReplay = true;
       return existingByHash;
     }
 
@@ -65,6 +83,8 @@ export class EvidenceService {
         storageProvider: data.storageProvider || 'LOCAL_OBJECT_STORE',
         storageBucket: data.storageBucket || 'inspectmate-evidence',
         storageKey,
+        localFileId: data.localFileId,
+        syncStatus: 'SYNCED',
         sha256Hash: data.sha256Hash,
         mimeType: data.mimeType,
         fileSize: data.fileSize,
@@ -76,6 +96,24 @@ export class EvidenceService {
       };
 
       const evidence = await evidenceRepository.create(evidenceData, session);
+
+      // Persist Idempotency record within transaction
+      if (data.idempotencyKey) {
+        await SyncIdempotency.create([{
+          idempotencyKey: data.idempotencyKey,
+          evidenceId: evidence._id as Types.ObjectId,
+          inspectionId: new Types.ObjectId(data.inspectionId),
+          responsePayload: {
+            id: evidence._id,
+            serverEvidenceId: evidence._id,
+            inspectionId: evidence.inspection,
+            clientEvidenceId: data.clientEvidenceId,
+            sha256Hash: evidence.sha256Hash,
+            uploadedAt: evidence.uploadedAt,
+            syncStatus: 'SYNCED'
+          }
+        }], { session });
+      }
 
       if (data.qualityAssessment) {
         await qualityAssessmentRepository.create({

@@ -1,6 +1,7 @@
 import { localEvidenceStore } from '../storage/LocalEvidenceStore';
 import { mediaBlobStore } from '../storage/MediaBlobStore';
 import { syncQueueStore } from '../storage/SyncQueueStore';
+import { integrityVerifier } from '../storage/IntegrityVerifier';
 import { networkMonitor, NetworkStatus } from '../network/NetworkMonitor';
 import { defaultRetryPolicy, RetryPolicy } from './RetryPolicy';
 import { uploadEvidenceAPI, ApiError } from '../evidenceApi.service';
@@ -24,10 +25,15 @@ export class SyncCoordinator {
   private listeners: Set<() => void> = new Set();
   private isPausedForAuth = false;
   private retryTimer: any = null;
+  private lastSyncTime: number | null = null;
 
   constructor(retryPolicy: RetryPolicy = defaultRetryPolicy) {
     this.retryPolicy = retryPolicy;
     this.setupListeners();
+  }
+
+  getLastSyncTime(): number | null {
+    return this.lastSyncTime;
   }
 
   private setupListeners() {
@@ -84,21 +90,26 @@ export class SyncCoordinator {
   private async verifyPendingMediaIntegrity(): Promise<void> {
     const pending = await localEvidenceStore.listPendingSyncEvidence(this.userId);
     for (const record of pending) {
-      const hasBlob = await mediaBlobStore.hasBlob(record.localMediaId);
-      if (!hasBlob) {
+      const integrity = await integrityVerifier.verifyBlobIntegrity(record.localMediaId, record.sha256);
+      if (!integrity.valid) {
+        const isMissing = Boolean(integrity.error?.startsWith('LOCAL_FILE_MISSING'));
+        const category: SyncErrorCategory = isMissing ? 'FILE_NOT_FOUND' : 'INTEGRITY_FAILURE';
+        const code = isMissing ? 'LOCAL_FILE_MISSING' : 'SHA256_MISMATCH';
+        const message = integrity.error || 'Locally captured media blob failed integrity verification.';
+
         await localEvidenceStore.markSyncFailed(record.clientEvidenceId, {
-          category: 'FILE_NOT_FOUND',
-          code: 'LOCAL_FILE_MISSING',
-          message: 'Locally captured media blob is missing from device storage.',
+          category,
+          code,
+          message,
           retryable: false
         });
         const dedupeKey = `${record.inspectionId}:${record.clientEvidenceId}:UPLOAD_EVIDENCE`;
         const job = await syncQueueStore.getJobByDedupeKey(dedupeKey);
         if (job) {
           await syncQueueStore.failJob(job.jobId, {
-            category: 'FILE_NOT_FOUND',
-            code: 'LOCAL_FILE_MISSING',
-            message: 'Locally captured media blob is missing from device storage.',
+            category,
+            code,
+            message,
             retryable: false,
             timestamp: Date.now()
           }, 0, true);
@@ -179,18 +190,21 @@ export class SyncCoordinator {
       throw new Error(`Evidence record ${job.entityId} not found`);
     }
 
-    // 1. Verify local media file exists
-    const hasBlob = await mediaBlobStore.hasBlob(record.localMediaId);
-    if (!hasBlob) {
-      throw new Error('LOCAL_FILE_MISSING: Media blob not found in storage');
+    // 1. Verify local media file exists & verify cryptographic SHA-256 integrity
+    const integrity = await integrityVerifier.verifyBlobIntegrity(record.localMediaId, record.sha256);
+    if (!integrity.valid) {
+      if (integrity.error?.startsWith('LOCAL_FILE_MISSING')) {
+        throw new Error('LOCAL_FILE_MISSING: Media blob not found in storage');
+      }
+      throw new Error(`INTEGRITY_FAILURE: ${integrity.error || 'Computed SHA-256 hash mismatch'}`);
     }
 
     // 2. Mark state as SYNCING
     await localEvidenceStore.markSyncing(record.clientEvidenceId);
     this.notifyListeners();
 
-    // 3. Perform authoritative server upload
-    const response = await uploadEvidenceAPI(record, this.authToken);
+    // 3. Perform authoritative server upload with idempotency key
+    const response = await uploadEvidenceAPI(record, this.authToken, 30_000, job.idempotencyKey);
 
     // 4. Mark state as SYNCED with authoritative server proof
     await localEvidenceStore.markSynced(
@@ -198,6 +212,8 @@ export class SyncCoordinator {
       response.serverEvidenceId,
       response.uploadedAt
     );
+
+    this.lastSyncTime = Date.now();
   }
 
   private async handleJobError(job: SyncJob, error: any): Promise<void> {

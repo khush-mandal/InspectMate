@@ -7,6 +7,7 @@ export interface EvidenceUploadResponse {
   sha256Hash: string;
   uploadedAt: string;
   syncStatus: 'SYNCED';
+  isIdempotentReplay?: boolean;
 }
 
 export class ApiError extends Error {
@@ -24,17 +25,20 @@ export class ApiError extends Error {
 export const uploadEvidenceAPI = async (
   item: LocalEvidenceRecord,
   token?: string | null,
-  timeoutMs = 30_000
+  timeoutMs = 30_000,
+  idempotencyKey?: string
 ): Promise<EvidenceUploadResponse> => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
+    const activeIdempKey = idempotencyKey || `idemp_${item.inspectionId}_${item.clientEvidenceId}`;
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      'Idempotency-Key': activeIdempKey
     };
 
-    const authToken = token || localStorage.getItem('accessToken');
+    let authToken = token || (typeof localStorage !== 'undefined' ? localStorage.getItem('accessToken') : null);
     if (authToken) {
       headers['Authorization'] = `Bearer ${authToken}`;
     }
@@ -43,6 +47,8 @@ export const uploadEvidenceAPI = async (
       inspectionId: item.inspectionId,
       clientEvidenceId: item.clientEvidenceId,
       clientRequestId: item.id,
+      idempotencyKey: activeIdempKey,
+      localFileId: item.localFileId,
       evidenceType: item.mode === 'VIDEO' ? 'VIDEO' : 'PHOTO',
       captureSide: item.slotId || 'UNKNOWN',
       sha256Hash: item.sha256,
@@ -53,12 +59,45 @@ export const uploadEvidenceAPI = async (
       videoDuration: item.durationMs ? Math.round(item.durationMs / 1000) : undefined
     };
 
-    const response = await fetch('/api/evidence', {
+    let response = await fetch('/api/evidence', {
       method: 'POST',
       headers,
       body: JSON.stringify(payload),
       signal: controller.signal
     });
+
+    // Automatic silent token refresh on 401
+    if (response.status === 401 && typeof localStorage !== 'undefined') {
+      const storedRefreshToken = localStorage.getItem('refreshToken');
+      if (storedRefreshToken) {
+        try {
+          const refreshRes = await fetch('/api/auth/refresh', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: storedRefreshToken })
+          });
+
+          if (refreshRes.ok) {
+            const refreshData = await refreshRes.json();
+            if (refreshData.accessToken) {
+              localStorage.setItem('accessToken', refreshData.accessToken);
+              authToken = refreshData.accessToken;
+              headers['Authorization'] = `Bearer ${authToken}`;
+
+              // Retry upload with refreshed token
+              response = await fetch('/api/evidence', {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(payload),
+                signal: controller.signal
+              });
+            }
+          }
+        } catch {
+          // Fall through to standard error handling if refresh fails
+        }
+      }
+    }
 
     clearTimeout(timeoutId);
 
@@ -84,7 +123,8 @@ export const uploadEvidenceAPI = async (
       clientEvidenceId: result.data.clientEvidenceId || item.clientEvidenceId,
       sha256Hash: result.data.sha256Hash,
       uploadedAt: result.data.uploadedAt || new Date().toISOString(),
-      syncStatus: 'SYNCED'
+      syncStatus: 'SYNCED',
+      isIdempotentReplay: Boolean(result.data.isIdempotentReplay)
     };
   } catch (error: any) {
     clearTimeout(timeoutId);

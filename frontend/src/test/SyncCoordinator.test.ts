@@ -4,7 +4,8 @@ import { localEvidenceStore } from '../services/storage/LocalEvidenceStore';
 import { mediaBlobStore } from '../services/storage/MediaBlobStore';
 import { syncQueueStore } from '../services/storage/SyncQueueStore';
 import { networkMonitor } from '../services/network/NetworkMonitor';
-import { uploadEvidenceAPI } from '../services/evidenceApi.service';
+import { uploadEvidenceAPI, ApiError } from '../services/evidenceApi.service';
+import { calculateFileSha256 } from '../utils/crypto.utils';
 import { LocalEvidenceRecord, SyncJob } from '../types/capture.types';
 
 vi.mock('../services/evidenceApi.service', () => ({
@@ -34,6 +35,7 @@ describe('SyncCoordinator', () => {
 
   it('coordinates successful evidence upload and transitions to SYNCED', async () => {
     const blob = new Blob(['evidence-test-bytes'], { type: 'image/jpeg' });
+    const authenticSha256 = await calculateFileSha256(blob);
     const clientEvidenceId = `ev_coord_${Date.now()}`;
     const localMediaId = `media_${clientEvidenceId}`;
     await mediaBlobStore.saveBlob(localMediaId, blob);
@@ -47,7 +49,7 @@ describe('SyncCoordinator', () => {
       localMediaId,
       mimeType: 'image/jpeg',
       fileSize: blob.size,
-      sha256: 'd'.repeat(64),
+      sha256: authenticSha256,
       capturedAt: Date.now(),
       localCreatedAt: Date.now(),
       syncStatus: 'SYNC_PENDING',
@@ -65,6 +67,7 @@ describe('SyncCoordinator', () => {
       operation: 'UPLOAD_EVIDENCE',
       inspectionId: 'INS-COORD-01',
       clientRequestId: record.id,
+      idempotencyKey: `idemp_${clientEvidenceId}`,
       priority: 80,
       attemptCount: 0,
       status: 'QUEUED',
@@ -82,7 +85,8 @@ describe('SyncCoordinator', () => {
       clientEvidenceId,
       sha256Hash: record.sha256,
       uploadedAt: '2026-09-10T12:00:00Z',
-      syncStatus: 'SYNCED'
+      syncStatus: 'SYNCED',
+      isIdempotentReplay: false
     });
 
     // Run syncNow
@@ -96,6 +100,62 @@ describe('SyncCoordinator', () => {
 
     const updatedJob = await syncQueueStore.getJob(job.jobId);
     expect(updatedJob?.status).toBe('SUCCEEDED');
+    expect(coordinator.getLastSyncTime()).toBeDefined();
+  });
+
+  it('detects corrupted media / hash mismatch and halts upload with INTEGRITY_FAILURE', async () => {
+    const blob = new Blob(['original-unaltered-bytes'], { type: 'image/jpeg' });
+    const clientEvidenceId = `ev_corrupt_${Date.now()}`;
+    const localMediaId = `media_${clientEvidenceId}`;
+    await mediaBlobStore.saveBlob(localMediaId, blob);
+
+    // Record has a deliberate mismatch (corrupted or tampered metadata)
+    const record: LocalEvidenceRecord = {
+      id: `req_corrupt_${Date.now()}`,
+      clientEvidenceId,
+      inspectionId: 'INS-CORRUPT',
+      slotId: 'FRONT',
+      mode: 'PHOTO',
+      localMediaId,
+      mimeType: 'image/jpeg',
+      fileSize: blob.size,
+      sha256: 'deadbeef'.repeat(8), // Incorrect hash
+      capturedAt: Date.now(),
+      localCreatedAt: Date.now(),
+      syncStatus: 'SYNC_PENDING',
+      uploadAttempts: 0,
+      isActive: true,
+      userId: testUserId,
+      validationResult: { status: 'VALID' }
+    };
+    await localEvidenceStore.saveEvidence(record);
+
+    const job: SyncJob = {
+      jobId: `job_${clientEvidenceId}`,
+      entityType: 'EVIDENCE',
+      entityId: clientEvidenceId,
+      operation: 'UPLOAD_EVIDENCE',
+      inspectionId: 'INS-CORRUPT',
+      clientRequestId: record.id,
+      priority: 80,
+      attemptCount: 0,
+      status: 'QUEUED',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      nextAttemptAt: Date.now(),
+      dedupeKey: `INS-CORRUPT:${clientEvidenceId}:UPLOAD_EVIDENCE`,
+      userId: testUserId
+    };
+    await syncQueueStore.enqueueJob(job);
+
+    await coordinator.syncNow();
+
+    // Must NOT call upload API if integrity check fails!
+    expect(uploadEvidenceAPI).not.toHaveBeenCalled();
+
+    const updatedRecord = await localEvidenceStore.getEvidence(clientEvidenceId);
+    expect(updatedRecord?.syncStatus).toBe('SYNC_FAILED');
+    expect(updatedRecord?.lastErrorCategory).toBe('INTEGRITY_FAILURE');
   });
 
   it('marks SYNC_FAILED with LOCAL_FILE_MISSING when media blob is missing from storage', async () => {
@@ -145,5 +205,92 @@ describe('SyncCoordinator', () => {
     const updatedRecord = await localEvidenceStore.getEvidence(clientEvidenceId);
     expect(updatedRecord?.syncStatus).toBe('SYNC_FAILED');
     expect(updatedRecord?.lastErrorCode).toBe('LOCAL_FILE_MISSING');
+  });
+
+  it('reconciles interrupted SYNCING records on app startup crash recovery', async () => {
+    const clientEvidenceId = `ev_crash_${Date.now()}`;
+    const localMediaId = `media_${clientEvidenceId}`;
+
+    const record: LocalEvidenceRecord = {
+      id: `req_crash_${Date.now()}`,
+      clientEvidenceId,
+      inspectionId: 'INS-CRASH',
+      slotId: 'FRONT',
+      mode: 'PHOTO',
+      localMediaId,
+      mimeType: 'image/jpeg',
+      fileSize: 50,
+      sha256: 'a'.repeat(64),
+      capturedAt: Date.now(),
+      localCreatedAt: Date.now(),
+      syncStatus: 'SYNCING', // Interrupted during previous session crash
+      uploadAttempts: 1,
+      isActive: true,
+      userId: testUserId,
+      validationResult: { status: 'VALID' }
+    };
+    await localEvidenceStore.saveEvidence(record);
+
+    // Run startup reconciliation
+    await localEvidenceStore.reconcileStartupStates(testUserId);
+
+    const recovered = await localEvidenceStore.getEvidence(clientEvidenceId);
+    expect(recovered?.syncStatus).toBe('SYNC_PENDING');
+  });
+
+  it('pauses coordinator when 401 unauthenticated error is encountered', async () => {
+    const blob = new Blob(['auth-test-bytes'], { type: 'image/jpeg' });
+    const authenticSha256 = await calculateFileSha256(blob);
+    const clientEvidenceId = `ev_auth_${Date.now()}`;
+    const localMediaId = `media_${clientEvidenceId}`;
+    await mediaBlobStore.saveBlob(localMediaId, blob);
+
+    const record: LocalEvidenceRecord = {
+      id: `req_auth_${Date.now()}`,
+      clientEvidenceId,
+      inspectionId: 'INS-AUTH',
+      slotId: 'FRONT',
+      mode: 'PHOTO',
+      localMediaId,
+      mimeType: 'image/jpeg',
+      fileSize: blob.size,
+      sha256: authenticSha256,
+      capturedAt: Date.now(),
+      localCreatedAt: Date.now(),
+      syncStatus: 'SYNC_PENDING',
+      uploadAttempts: 0,
+      isActive: true,
+      userId: testUserId,
+      validationResult: { status: 'VALID' }
+    };
+    await localEvidenceStore.saveEvidence(record);
+
+    const job: SyncJob = {
+      jobId: `job_${clientEvidenceId}`,
+      entityType: 'EVIDENCE',
+      entityId: clientEvidenceId,
+      operation: 'UPLOAD_EVIDENCE',
+      inspectionId: 'INS-AUTH',
+      clientRequestId: record.id,
+      priority: 80,
+      attemptCount: 0,
+      status: 'QUEUED',
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      nextAttemptAt: Date.now(),
+      dedupeKey: `INS-AUTH:${clientEvidenceId}:UPLOAD_EVIDENCE`,
+      userId: testUserId
+    };
+    await syncQueueStore.enqueueJob(job);
+
+    // Mock 401 ApiError
+    (uploadEvidenceAPI as any).mockRejectedValue(new (ApiError as any)('Session expired', 401));
+
+    await coordinator.syncNow();
+
+    const queuedJob = await syncQueueStore.getJob(job.jobId);
+    // Lock must be released and job remains eligible for retry once re-authenticated
+    expect(queuedJob?.status).toBe('QUEUED');
+    expect(queuedJob?.lockedAt).toBeUndefined();
   });
 });
