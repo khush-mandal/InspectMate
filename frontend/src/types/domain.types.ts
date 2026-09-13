@@ -73,15 +73,18 @@ export interface Evidence {
 
 export interface ExtractedField {
   fieldName: string;
-  rawText: string;
+  value: string;
   normalizedValue?: string;
   confidence: number;
+  sourceEvidenceId: string;
   boundingBox?: {
     x: number;
     y: number;
     width: number;
     height: number;
   };
+  extractionMethod: string;
+  needsVerification: boolean;
 }
 
 export interface OCRResult {

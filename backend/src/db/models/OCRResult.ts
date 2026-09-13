@@ -7,15 +7,18 @@ export interface IOCRResultDocument extends IOCRResult, Document {
 
 const ExtractedFieldSchema = new Schema({
   fieldName: { type: String, required: true },
-  rawText: { type: String, required: true },
+  value: { type: String, required: true },
   normalizedValue: { type: String },
   confidence: { type: Number, min: 0, max: 100 },
+  sourceEvidenceId: { type: String, required: true },
   boundingBox: {
     x: { type: Number, min: 0 },
     y: { type: Number, min: 0 },
     width: { type: Number, min: 0 },
     height: { type: Number, min: 0 }
-  }
+  },
+  extractionMethod: { type: String, required: true },
+  needsVerification: { type: Boolean, required: true, default: false }
 }, { _id: false });
 
 const OCRResultSchema = new Schema(
