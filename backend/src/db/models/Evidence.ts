@@ -1,12 +1,14 @@
 import mongoose, { Schema, Document, Types } from 'mongoose';
+import { IEvidence as ICanonicalEvidence, IEvidenceMetadata, EvidenceType as CanonicalEvidenceType } from '../../interfaces/domain.interfaces';
 
 export type EvidenceType = 'PHOTO' | 'VIDEO' | 'BEST_FRAME' | 'CROP';
 export type CaptureSide = 'FRONT' | 'BACK' | 'SIDE' | 'TOP' | 'BOTTOM' | 'UNKNOWN';
 export type QualityAssessment = 'PENDING' | 'ACCEPT' | 'RECAPTURE' | 'REVIEW';
 
-export interface IEvidence extends Document {
+export interface IEvidence extends Document, Partial<Omit<ICanonicalEvidence, 'type' | '_id'>> {
   inspection: Types.ObjectId;
   evidenceType: EvidenceType;
+  canonicalType?: CanonicalEvidenceType;
   captureSide: CaptureSide;
   sourceEvidence?: Types.ObjectId;
   frameNumber?: number;
@@ -54,6 +56,13 @@ const EvidenceSchema = new Schema(
   {
     inspection: { type: Schema.Types.ObjectId, ref: 'Inspection', required: true, index: true },
     evidenceType: { type: String, enum: ['PHOTO', 'VIDEO', 'BEST_FRAME', 'CROP'], required: true },
+    
+    // Canonical Phase 8 Fields
+    inspectionId: { type: Schema.Types.ObjectId, ref: 'Inspection' },
+    canonicalType: { type: String, enum: ['IMAGE', 'VIDEO', 'VIDEO_FRAME'] },
+    metadata: { type: Schema.Types.Mixed },
+    syncMetadata: { type: Schema.Types.Mixed },
+
     captureSide: { type: String, enum: ['FRONT', 'BACK', 'SIDE', 'TOP', 'BOTTOM', 'UNKNOWN'], default: 'UNKNOWN' },
     sourceEvidence: { type: Schema.Types.ObjectId, ref: 'Evidence' },
     frameNumber: { type: Number, min: 0 },

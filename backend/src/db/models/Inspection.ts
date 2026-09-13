@@ -1,9 +1,10 @@
 import mongoose, { Schema, Document, Types } from 'mongoose';
+import { IInspection as ICanonicalInspection, InspectionStatus } from '../../interfaces/domain.interfaces';
 
 export type LifecycleStatus = 'DRAFT' | 'PROCESSING' | 'AWAITING_REVIEW' | 'COMPLETED' | 'ARCHIVED';
 export type FinalResultStatus = 'VERIFIED' | 'POTENTIAL_VIOLATION' | 'INCONSISTENT' | 'INSUFFICIENT_EVIDENCE' | 'PENDING';
 
-export interface IInspection extends Document {
+export interface IInspection extends Document, Partial<Omit<ICanonicalInspection, '_id'>> {
   inspector: Types.ObjectId;
   clientReference?: string;
   lifecycleStatus: LifecycleStatus;
@@ -44,6 +45,14 @@ const InspectionSchema = new Schema(
       default: 'DRAFT',
       required: true
     },
+    // Canonical Phase 8 Fields
+    inspectorId: { type: String, index: true },
+    packageId: { type: Schema.Types.ObjectId, ref: 'Package' },
+    status: { 
+      type: String, 
+      enum: ['DRAFT', 'EVIDENCE_CAPTURE', 'EXTRACTION', 'COMPLIANCE_PENDING', 'REVIEW_REQUIRED', 'COMPLETED', 'SYNC_PENDING', 'SYNCED', 'SYNC_FAILED'], 
+    },
+    syncMetadata: { type: Schema.Types.Mixed },
     finalStatus: { 
       type: String, 
       enum: ['VERIFIED', 'POTENTIAL_VIOLATION', 'INCONSISTENT', 'INSUFFICIENT_EVIDENCE', 'PENDING'],
