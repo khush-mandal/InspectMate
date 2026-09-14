@@ -319,7 +319,7 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({ slotId, onClose }) =
             <div className="p-6 shrink-0 space-y-4">
               <QualityResultCard assessment={qualityAssessment} isProcessing={isProcessingQuality} />
 
-              {validation?.status === 'VALID' && qualityAssessment?.status !== 'RECAPTURE' && (
+              {validation?.status === 'VALID' && (
                 <button 
                   onClick={handleAccept} 
                   disabled={isProcessingQuality}

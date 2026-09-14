@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   GitCompare, 
   ArrowRight, 
@@ -10,11 +10,13 @@ import {
   Database, 
   Cpu,
   Layers,
-  Eye
+  Eye,
+  Loader2
 } from 'lucide-react';
 import { GlassCard } from '../common/GlassCard';
 import { GlassButton } from '../common/GlassButton';
 import { ProductSample } from '../../types';
+import { RulesApiClient, VerificationResponse } from '../../services/verify/RulesApiClient';
 
 interface CrossSourceVerificationScreenProps {
   product: ProductSample;
@@ -27,16 +29,67 @@ export const CrossSourceVerificationScreen: React.FC<CrossSourceVerificationScre
   onProceed,
   onNavigate
 }) => {
-  const [inconsistentMode, setInconsistentMode] = useState<boolean>(product.hasViolation);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [verificationResult, setVerificationResult] = useState<VerificationResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  // Values depending on mode
-  const printedPrice = inconsistentMode ? '₹349.00' : product.printedMrp;
+  // We are using printedMrp as the extracted value, in a real flow this comes from ExtractedField
+  const printedPrice = product.printedMrp;
   const centralPrice = product.referenceMrp; // ₹199 or ₹299
-  const isMismatch = inconsistentMode;
+
+  useEffect(() => {
+    const runVerification = async () => {
+      try {
+        setLoading(true);
+        // Call the real rules engine endpoint
+        const result = await RulesApiClient.verify({
+          mrp: product.printedMrp,
+          netQuantity: product.printedNetQuantity,
+          manufacturer: product.manufacturer,
+          dateInfo: product.mfd,
+          consumerCare: product.consumerCareEmail
+        });
+        
+        // Wait a bit to show loading state intentionally for demo purposes
+        setTimeout(() => {
+          setVerificationResult(result);
+          setLoading(false);
+        }, 1200);
+      } catch (err: any) {
+        setError(err.message || 'Failed to connect to Rules Engine');
+        setLoading(false);
+      }
+    };
+
+    runVerification();
+  }, [product]);
+
+  const isMismatch = verificationResult?.finalStatus === 'POTENTIAL_VIOLATION';
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
+        <Loader2 size={48} className="text-indigo-600 animate-spin" />
+        <h2 className="text-xl font-bold text-slate-700">Running Deterministic Rules Engine...</h2>
+        <p className="text-sm text-slate-500">Cross-validating OCR and Vision data against GS1 Registry and Legal Metrology Rules.</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
+        <AlertTriangle size={48} className="text-rose-600" />
+        <h2 className="text-xl font-bold text-slate-700">Rules Engine Error</h2>
+        <p className="text-sm text-slate-500">{error}</p>
+        <GlassButton variant="primary" onClick={() => window.location.reload()}>Retry</GlassButton>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 animate-fade-in">
-      {/* Header & Toggle */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-1">
         <div>
           <div className="flex items-center gap-2">
@@ -54,31 +107,6 @@ export const CrossSourceVerificationScreen: React.FC<CrossSourceVerificationScre
           <p className="text-sm text-slate-600 mt-1">
             Automated alignment between physical container OCR and National GS1 Commodity Master Data.
           </p>
-        </div>
-
-        {/* State Toggle Buttons */}
-        <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-white/80 border border-slate-200 shadow-xs">
-          <span className="text-[11px] font-bold text-slate-500 pl-2 pr-1">Scenario:</span>
-          <button
-            onClick={() => setInconsistentMode(false)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
-              !isMismatch
-                ? 'bg-teal-600 text-white shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Consistent (Teal)
-          </button>
-          <button
-            onClick={() => setInconsistentMode(true)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
-              isMismatch
-                ? 'bg-amber-600 text-white shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Inconsistent (Amber)
-          </button>
         </div>
       </div>
 
@@ -138,9 +166,31 @@ export const CrossSourceVerificationScreen: React.FC<CrossSourceVerificationScre
               {!isMismatch ? '100% Consistent' : 'Data Inconsistency'}
             </h4>
             <p className="text-[11px] opacity-80 mt-1">
-              {!isMismatch ? 'Zero statutory discrepancy' : 'Delta of ₹150 detected'}
+              {!isMismatch ? 'Zero statutory discrepancy' : 'Discrepancy detected'}
             </p>
           </div>
+        </div>
+      </GlassCard>
+      
+      {/* Dynamic Rule Results Table */}
+      <GlassCard className="p-6">
+        <h3 className="text-sm font-bold text-slate-900 mb-4">Rule Engine Evaluation Details</h3>
+        <div className="space-y-2">
+          {verificationResult?.ruleResults.map((r, i) => (
+             <div key={i} className={`p-3 border rounded flex items-center justify-between ${r.passed ? 'bg-teal-50 border-teal-100' : 'bg-rose-50 border-rose-100'}`}>
+               <div>
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500 mr-2">{r.ruleId}</span>
+                  <span className="text-sm font-bold text-slate-800">{r.ruleName}</span>
+                  <p className="text-xs text-slate-600 mt-0.5">{r.message}</p>
+               </div>
+               <div>
+                  {r.passed ? <CheckCircle2 className="text-teal-600" size={20} /> : <AlertTriangle className="text-rose-600" size={20} />}
+               </div>
+             </div>
+          ))}
+          {verificationResult?.ruleResults.length === 0 && (
+             <div className="p-4 text-center text-sm text-slate-500 bg-slate-50 rounded">No active rules evaluated. Check database.</div>
+          )}
         </div>
       </GlassCard>
 
@@ -182,14 +232,11 @@ export const CrossSourceVerificationScreen: React.FC<CrossSourceVerificationScre
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm font-extrabold text-amber-950">
-                    Data Inconsistency Detected — Dual Pricing Alert
+                    Data Inconsistency Detected — Potential Violation Alert
                   </h3>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-300">
-                    Rule 6(1)(e) Warning
-                  </span>
                 </div>
                 <p className="text-xs text-amber-900 mt-1 leading-relaxed">
-                  The physical container is priced at <strong className="text-rose-700 font-bold">{printedPrice}</strong>, whereas the registered central manufacturer price is <strong className="text-teal-800 font-bold">{centralPrice}</strong>. A secondary price sticker may have been pasted to inflate retail value.
+                  The physical container details do not match the expected constraints. A secondary price sticker may have been pasted to inflate retail value, or a required field is missing.
                 </p>
               </div>
             </div>

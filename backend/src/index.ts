@@ -7,6 +7,9 @@ import { logger } from './utils/logger';
 import authRoutes, { seedUsers } from './routes/auth';
 import inspectionsRoutes from './routes/inspections';
 import evidenceRoutes from './routes/evidence';
+import extractionRoutes from './routes/extraction';
+import productsRoutes from './routes/products';
+import verifyRoutes from './routes/verify';
 
 const app = express();
 
@@ -17,6 +20,9 @@ app.use(express.json({ limit: '50mb' }));
 app.use('/api/auth', authRoutes);
 app.use('/api/inspections', inspectionsRoutes);
 app.use('/api/evidence', evidenceRoutes);
+app.use('/api/extract', extractionRoutes);
+app.use('/api/products', productsRoutes);
+app.use('/api/verify', verifyRoutes);
 
 // Database Health Check
 app.get('/api/health', async (req, res) => {

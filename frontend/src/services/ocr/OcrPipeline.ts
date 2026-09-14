@@ -7,7 +7,8 @@ import { FieldExtractor } from './FieldExtractor';
 import { ExtractionResult, FieldTarget } from '../../types/ocr.types';
 import { BarcodeDecoder } from '../barcode/BarcodeDecoder';
 import { IProductLookupProvider } from '../barcode/ProductLookupProvider';
-import { MockProductLookupProvider } from '../barcode/MockProductLookupProvider';
+import { ApiProductLookupProvider } from '../barcode/ApiProductLookupProvider';
+import { VisionApiClient } from '../vision/VisionApiClient';
 
 export class OcrPipeline {
   private engine: IOcrEngine;
@@ -17,7 +18,7 @@ export class OcrPipeline {
   constructor(engine?: IOcrEngine, productLookup?: IProductLookupProvider) {
     this.engine = engine || new TesseractAdapter();
     this.barcodeDecoder = new BarcodeDecoder();
-    this.productLookup = productLookup || new MockProductLookupProvider();
+    this.productLookup = productLookup || new ApiProductLookupProvider();
   }
 
   async processEvidence(
@@ -31,7 +32,7 @@ export class OcrPipeline {
     try {
       // 1. Quality Validation (Re-use Quality Engine)
       const quality = await QualityEngine.analyze(evidenceBlob);
-      if (quality.status === 'RECAPTURE' || quality.status === 'ERROR') {
+      if (quality.status === 'ERROR') {
         return {
           evidenceId: evidenceRecord.clientEvidenceId,
           inspectionId: evidenceRecord.inspectionId,
@@ -64,12 +65,29 @@ export class OcrPipeline {
         }
       }
 
-      // 3. OCR Engine
+      // 3. OCR Engine & Vision Engine (Parallel)
       await this.engine.initialize();
-      const rawResult = await this.engine.recognize(processedBlob);
+      const [rawResult, visionResult] = await Promise.all([
+        this.engine.recognize(processedBlob),
+        VisionApiClient.extractFields(evidenceBlob).catch(e => {
+          console.error("Vision API failed:", e);
+          return null;
+        })
+      ]);
 
       // 4. Field Extraction
       const extractedFields = FieldExtractor.extractFields(rawResult, targets, evidenceRecord.clientEvidenceId);
+
+      // Inject Vision Result into Extracted Fields
+      if (visionResult) {
+        extractedFields.forEach(field => {
+          if (field.fieldName === 'mrp' && visionResult.mrp) field.visionCrossCheck = visionResult.mrp;
+          if (field.fieldName === 'netQuantity' && visionResult.netQuantity) field.visionCrossCheck = visionResult.netQuantity;
+          if (field.fieldName === 'manufacturer' && visionResult.manufacturer) field.visionCrossCheck = visionResult.manufacturer;
+          if ((field.fieldName === 'manufacturingDate' || field.fieldName === 'expiryDate') && visionResult.dateInfo) field.visionCrossCheck = visionResult.dateInfo;
+          if (field.fieldName === 'consumerCare' && visionResult.consumerCare) field.visionCrossCheck = visionResult.consumerCare;
+        });
+      }
 
       // 4.5 Cross-validation with Barcode Lookup
       if (lookupResult) {

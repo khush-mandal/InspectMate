@@ -27,11 +27,11 @@ export interface QualityPolicyConfig {
 
 export const defaultQualityPolicy: QualityPolicyConfig = {
   thresholds: {
-    minWidth: 720,
-    minHeight: 720,
-    minBlurVariance: 100, // Lower means blurrier
-    maxGlareRatio: 0.15, // 15% of image is overexposed
-    minTextContrast: 30, // Heuristic measure
+    minWidth: 480,
+    minHeight: 480,
+    minBlurVariance: 50, // Lower means blurrier
+    maxGlareRatio: 0.30, // 30% of image is overexposed
+    minTextContrast: 20, // Heuristic measure
   },
   weights: {
     resolution: 20,
@@ -40,9 +40,9 @@ export const defaultQualityPolicy: QualityPolicyConfig = {
     textVisibility: 20,
   },
   blockingRules: {
-    failOnLowResolution: true,
-    failOnHighBlur: true,
-    failOnHighGlare: false, // We'll warn mostly, unless extremely high
+    failOnLowResolution: false,
+    failOnHighBlur: false,
+    failOnHighGlare: false,
     failOnNoText: false,
   }
 };
