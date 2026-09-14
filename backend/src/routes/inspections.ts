@@ -3,8 +3,12 @@ import { authenticateJWT, authorizeRoles, AuthRequest } from '../middleware/auth
 import { inspectionService } from '../services/InspectionService';
 import { logger } from '../utils/logger';
 import { z } from 'zod';
+import { GoogleGenAI, Type } from '@google/genai';
 
 const router = Router();
+
+// Initialize Gemini AI SDK
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 // Protect all inspection routes
 router.use(authenticateJWT);
@@ -105,6 +109,65 @@ router.get('/dashboard', authorizeRoles('inspector'), async (req: AuthRequest, r
   } catch (error: any) {
     logger.error('Error fetching dashboard data:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch dashboard data' });
+  }
+});
+
+// ==========================================
+// NEW ROUTE: REAL GEMINI QUALITY ANALYSIS API
+// ==========================================
+router.post('/analyze-quality', authorizeRoles('inspector'), async (req: AuthRequest, res) => {
+  try {
+    const { imageBase64, imageUrl, mimeType = 'image/jpeg' } = req.body;
+
+    let inlineData = null;
+
+    if (imageBase64) {
+      inlineData = { data: imageBase64, mimeType };
+    } else if (imageUrl) {
+      const imgRes = await fetch(imageUrl);
+      const buffer = await imgRes.arrayBuffer();
+      const base64Str = Buffer.from(buffer).toString('base64');
+      inlineData = { data: base64Str, mimeType };
+    }
+
+    if (!inlineData) {
+      return res.status(400).json({ success: false, error: 'Either imageBase64 or imageUrl is required' });
+    }
+
+    // Call Gemini 2.5 Flash API to get strict JSON Quality Metrics
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: [
+        {
+          text: 'Analyze this captured commodity inspection image for evidentiary quality. Return strict JSON quality scores (numeric 0 to 100) for sharpness, glare, resolution, textVisibility, a boolean isAcceptable, and feedback text.',
+        },
+        { inlineData },
+      ],
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            sharpness: { type: Type.NUMBER },
+            glare: { type: Type.NUMBER },
+            resolution: { type: Type.NUMBER },
+            textVisibility: { type: Type.NUMBER },
+            isAcceptable: { type: Type.BOOLEAN },
+            feedback: { type: Type.STRING },
+          },
+          required: ['sharpness', 'glare', 'resolution', 'textVisibility', 'isAcceptable', 'feedback'],
+        },
+      },
+    });
+
+    const metrics = JSON.parse(response.text || '{}');
+    return res.json({
+      success: true,
+      metrics,
+    });
+  } catch (error: any) {
+    logger.error('Error analyzing image quality with Gemini:', error);
+    res.status(500).json({ success: false, error: 'Failed to analyze image quality', details: error.message });
   }
 });
 

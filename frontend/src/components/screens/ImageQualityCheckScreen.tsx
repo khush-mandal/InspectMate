@@ -1,21 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   CheckCircle2, 
   XCircle, 
   AlertTriangle, 
   RefreshCw, 
   Video, 
-  ArrowRight, 
-  SlidersHorizontal,
-  Eye,
+  ArrowRight,
   Camera,
-  ShieldCheck
+  Loader2
 } from 'lucide-react';
 import { GlassCard } from '../common/GlassCard';
 import { GlassButton } from '../common/GlassButton';
 import { ConfidenceRing } from '../common/ConfidenceRing';
-import { GOOD_QUALITY_METRICS, BAD_QUALITY_METRICS } from '../../data/mockData';
 import { ProductSample } from '../../types';
+
+interface QualityMetricItem {
+  id: string;
+  label: string;
+  description: string;
+  score: number;
+  passed: boolean;
+}
 
 interface ImageQualityCheckScreenProps {
   product: ProductSample;
@@ -30,61 +35,116 @@ export const ImageQualityCheckScreen: React.FC<ImageQualityCheckScreenProps> = (
   onRetake,
   onVideoFallback
 }) => {
-  const [qualityMode, setQualityMode] = useState<'good' | 'bad'>('good');
+  const [loading, setLoading] = useState<boolean>(true);
+  const [metrics, setMetrics] = useState<QualityMetricItem[]>([]);
+  const [overallScore, setOverallScore] = useState<number>(0);
+  const [isAcceptable, setIsAcceptable] = useState<boolean>(false);
+  const [feedback, setFeedback] = useState<string>('');
 
-  const isGood = qualityMode === 'good';
-  const metrics = isGood ? GOOD_QUALITY_METRICS : BAD_QUALITY_METRICS;
-  const overallScore = isGood ? 94 : 48;
+  // Real Gemini API Call on Mount / Image Load
+  useEffect(() => {
+    analyzeImageQuality();
+  }, [product.imageUrlBack]);
+
+  const analyzeImageQuality = async () => {
+    setLoading(true);
+    try {
+      // Image URL ko base64/blob format me bhejte hain API endpoint par
+      const res = await fetch('/api/inspections/analyze-quality', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageUrl: product.imageUrlBack
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success && data.metrics) {
+        const m = data.metrics;
+        
+        // Dynamic list from Gemini Response
+        const formattedMetrics: QualityMetricItem[] = [
+          {
+            id: 'sharpness',
+            label: 'Image Sharpness & Focus',
+            description: 'Checks blur and edge detection clarity',
+            score: m.sharpness,
+            passed: m.sharpness >= 70
+          },
+          {
+            id: 'glare',
+            label: 'Specular Glare Suppression',
+            description: 'Verifies text isn’t washed out by light reflect',
+            score: 100 - m.glare, // Lower glare is better
+            passed: m.glare <= 30
+          },
+          {
+            id: 'resolution',
+            label: 'Bounding Box Resolution',
+            description: 'Ensures minimum pixel density for OCR',
+            score: m.resolution,
+            passed: m.resolution >= 75
+          },
+          {
+            id: 'textVisibility',
+            label: 'Text Contrast & Visibility',
+            description: 'Checks font legibility against background',
+            score: m.textVisibility,
+            passed: m.textVisibility >= 70
+          }
+        ];
+
+        setMetrics(formattedMetrics);
+        setIsAcceptable(m.isAcceptable);
+        setFeedback(m.feedback);
+
+        // Overall Score Calculation
+        const avg = Math.round((m.sharpness + (100 - m.glare) + m.resolution + m.textVisibility) / 4);
+        setOverallScore(avg);
+      }
+    } catch (error) {
+      console.error("AI Analysis error:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
-      {/* Header & Mode Switcher */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-1">
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight font-serif">
               Image Quality & Optical Pre-Check
             </h1>
-            <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
-              isGood ? 'bg-teal-50 text-teal-800 border border-teal-200' : 'bg-rose-50 text-rose-800 border border-rose-200'
-            }`}>
-              {isGood ? 'Quality Verified (PASS)' : 'Image Not Suitable (FAIL)'}
-            </span>
+            {!loading && (
+              <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
+                isAcceptable ? 'bg-teal-50 text-teal-800 border border-teal-200' : 'bg-rose-50 text-rose-800 border border-rose-200'
+              }`}>
+                {isAcceptable ? 'Quality Verified (PASS)' : 'Image Not Suitable (FAIL)'}
+              </span>
+            )}
           </div>
           <p className="text-sm text-slate-600 mt-1">
-            Automated image verification ensures legal evidentiary standards prior to OCR extraction.
+            Automated image verification powered by Gemini AI.
           </p>
         </div>
 
-        {/* State Simulator toggle */}
-        <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-white/80 border border-slate-200 shadow-xs">
-          <span className="text-[11px] font-bold text-slate-500 pl-2 pr-1">Simulate:</span>
-          <button
-            onClick={() => setQualityMode('good')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
-              isGood
-                ? 'bg-teal-600 text-white shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Good State (94%)
-          </button>
-          <button
-            onClick={() => setQualityMode('bad')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
-              !isGood
-                ? 'bg-rose-600 text-white shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Bad State (48%)
-          </button>
-        </div>
+        {/* Re-analyze Button */}
+        <button
+          onClick={analyzeImageQuality}
+          disabled={loading}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white/80 border border-slate-200 shadow-xs hover:bg-slate-50 transition"
+        >
+          <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+          Re-Analyze
+        </button>
       </div>
 
       {/* Main Analysis Layout */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-        {/* Left Column: Image Preview with Glare/Focus Visualizer */}
+        {/* Left Column: Image Preview */}
         <div className="md:col-span-5 space-y-4">
           <GlassCard className="p-4 border border-white/90">
             <div className="relative rounded-2xl overflow-hidden aspect-4/3 bg-slate-900 shadow-inner">
@@ -92,67 +152,46 @@ export const ImageQualityCheckScreen: React.FC<ImageQualityCheckScreenProps> = (
                 src={product.imageUrlBack}
                 alt="Captured Label"
                 className={`w-full h-full object-cover transition-all ${
-                  !isGood ? 'blur-[1.5px] contrast-75 brightness-110' : 'filter-none'
+                  !isAcceptable && !loading ? 'blur-[1px] contrast-75' : 'filter-none'
                 }`}
-                referrerPolicy="no-referrer"
               />
 
-              {!isGood && (
-                <>
-                  {/* Simulated Glare hotspot */}
-                  <div className="absolute top-[40%] right-[30%] w-24 h-24 rounded-full bg-white/70 blur-xl pointer-events-none" />
-                  <div className="absolute top-[38%] right-[28%] px-2 py-0.5 rounded-md bg-rose-600 text-white text-[10px] font-bold shadow-md">
-                    Specular Glare Detected
-                  </div>
-                </>
+              {loading && (
+                <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xs flex flex-col items-center justify-center text-white text-xs gap-2">
+                  <Loader2 className="animate-spin text-teal-400" size={24} />
+                  <span>Gemini AI Analyzing Quality...</span>
+                </div>
               )}
-
-              {/* Status Banner overlay */}
-              <div className="absolute bottom-2 left-2 right-2 p-2 rounded-xl bg-slate-900/80 backdrop-blur-md border border-white/20 text-white flex items-center justify-between text-xs">
-                <span className="font-mono text-[11px]">Back_Panel_02.raw</span>
-                <span className="text-[10px] font-semibold text-slate-300">ISO 100 • f/1.8</span>
-              </div>
-            </div>
-
-            <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
-              <span>Evidentiary Hash:</span>
-              <span className="font-mono text-[11px] text-slate-700">sha256:7f8a9...b4c2</span>
             </div>
           </GlassCard>
 
-          {/* Quick Guidance Box */}
-          <div className={`p-4 rounded-2xl border text-xs leading-relaxed ${
-            isGood
-              ? 'bg-teal-50/70 border-teal-200 text-teal-900'
-              : 'bg-rose-50/70 border-rose-200 text-rose-900'
-          }`}>
-            <p className="font-bold flex items-center gap-1.5 mb-1">
-              {isGood ? <CheckCircle2 size={15} /> : <AlertTriangle size={15} />}
-              {isGood ? 'Optimal Optical Fidelity' : 'Evidentiary Degradation Detected'}
-            </p>
-            <p>
-              {isGood
-                ? 'All mandatory declaration zones satisfy minimum legal metrology resolution and contrast criteria.'
-                : 'Specular glare on the MRP bounding box will impede legal defense. High probability of OCR misinterpretation.'}
-            </p>
-          </div>
+          {/* AI Guidance Box */}
+          {!loading && (
+            <div className={`p-4 rounded-2xl border text-xs leading-relaxed ${
+              isAcceptable
+                ? 'bg-teal-50/70 border-teal-200 text-teal-900'
+                : 'bg-rose-50/70 border-rose-200 text-rose-900'
+            }`}>
+              <p className="font-bold flex items-center gap-1.5 mb-1">
+                {isAcceptable ? <CheckCircle2 size={15} /> : <AlertTriangle size={15} />}
+                {isAcceptable ? 'Optimal Optical Fidelity' : 'Quality Issues Detected'}
+              </p>
+              <p>{feedback || (isAcceptable ? 'Image satisfies criteria for OCR.' : 'Please retake image with better lighting.')}</p>
+            </div>
+          )}
         </div>
 
         {/* Right Column: Score & Detailed Checklist */}
         <div className="md:col-span-7 space-y-5">
-          {/* Aggregate Confidence Card */}
           <GlassCard className="p-6 border border-white/90">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-6 pb-5 border-b border-slate-200/80">
               <div className="text-center sm:text-left">
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                  Optical Suitability Score
+                  AI Optical Suitability Score
                 </span>
                 <h3 className="text-xl font-bold text-slate-900 mt-1">
-                  {isGood ? 'Ready for Legal Metrology OCR' : 'Pre-Processing Failed Quality Gate'}
+                  {isAcceptable ? 'Ready for Legal Metrology OCR' : 'Pre-Processing Failed Quality Gate'}
                 </h3>
-                <p className="text-xs text-slate-500 mt-1">
-                  Threshold for automated extraction is ≥ 80%
-                </p>
               </div>
 
               <div className="shrink-0">
@@ -160,7 +199,7 @@ export const ImageQualityCheckScreen: React.FC<ImageQualityCheckScreenProps> = (
                   score={overallScore}
                   size={76}
                   strokeWidth={7}
-                  label={isGood ? 'EXCELLENT' : 'UNSUITABLE'}
+                  label={isAcceptable ? 'PASS' : 'FAIL'}
                 />
               </div>
             </div>
@@ -172,7 +211,7 @@ export const ImageQualityCheckScreen: React.FC<ImageQualityCheckScreenProps> = (
                   key={metric.id}
                   className={`p-3 rounded-xl border transition-all flex items-start justify-between gap-3 ${
                     metric.passed
-                      ? 'bg-white/60 border-slate-200/80 hover:bg-white'
+                      ? 'bg-white/60 border-slate-200/80'
                       : 'bg-rose-50/80 border-rose-200/90 text-rose-950'
                   }`}
                 >
@@ -183,12 +222,8 @@ export const ImageQualityCheckScreen: React.FC<ImageQualityCheckScreenProps> = (
                       <XCircle size={17} className="text-rose-600 shrink-0 mt-0.5" />
                     )}
                     <div>
-                      <p className="text-xs font-bold text-slate-900">
-                        {metric.label}
-                      </p>
-                      <p className="text-[11px] text-slate-500 mt-0.5">
-                        {metric.description}
-                      </p>
+                      <p className="text-xs font-bold text-slate-900">{metric.label}</p>
+                      <p className="text-[11px] text-slate-500 mt-0.5">{metric.description}</p>
                     </div>
                   </div>
 
@@ -204,49 +239,23 @@ export const ImageQualityCheckScreen: React.FC<ImageQualityCheckScreenProps> = (
             </div>
           </GlassCard>
 
-          {/* Action Buttons depending on Good / Bad state */}
+          {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
-            {!isGood ? (
+            {!isAcceptable ? (
               <>
-                <GlassButton
-                  variant="destructive"
-                  size="md"
-                  onClick={onRetake}
-                  icon={<RefreshCw size={15} />}
-                  className="w-full sm:w-auto"
-                >
+                <GlassButton variant="destructive" size="md" onClick={onRetake} icon={<RefreshCw size={15} />} className="w-full sm:w-auto">
                   Retake Photo Angle
                 </GlassButton>
-
-                <GlassButton
-                  variant="primary"
-                  size="md"
-                  onClick={onVideoFallback}
-                  icon={<Video size={15} />}
-                  className="w-full sm:w-auto"
-                >
+                <GlassButton variant="primary" size="md" onClick={onVideoFallback} icon={<Video size={15} />} className="w-full sm:w-auto">
                   Launch Video Fallback →
                 </GlassButton>
               </>
             ) : (
               <>
-                <GlassButton
-                  variant="secondary"
-                  size="md"
-                  onClick={onRetake}
-                  icon={<Camera size={15} />}
-                  className="w-full sm:w-auto"
-                >
+                <GlassButton variant="secondary" size="md" onClick={onRetake} icon={<Camera size={15} />} className="w-full sm:w-auto">
                   Add Another Photo
                 </GlassButton>
-
-                <GlassButton
-                  variant="primary"
-                  size="lg"
-                  onClick={onProceed}
-                  icon={<ArrowRight size={16} />}
-                  className="w-full sm:w-auto"
-                >
+                <GlassButton variant="primary" size="lg" onClick={onProceed} icon={<ArrowRight size={16} />} className="w-full sm:w-auto">
                   Continue to OCR/CV Extraction →
                 </GlassButton>
               </>
