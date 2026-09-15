@@ -171,4 +171,149 @@ router.post('/analyze-quality', authorizeRoles('inspector'), async (req: AuthReq
   }
 });
 
-export default router;
+// ==========================================
+// HUMAN-IN-THE-LOOP INSPECTION ADJUDICATION
+// ==========================================
+
+// 1. Fetch Complete 10-Dimension Review Bundle
+router.get('/:id/review', authorizeRoles('inspector', 'regulator'), async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    const inspectionId = req.params.id;
+    const bundle = await inspectionService.getInspectionReviewBundle(inspectionId, userId);
+
+    res.json({
+      success: true,
+      data: bundle
+    });
+  } catch (error: any) {
+    logger.error('Error fetching inspection review bundle:', error);
+    res.status(500).json({ success: false, error: error.message || 'Failed to fetch review bundle' });
+  }
+});
+
+// 2. Field Review Action (Accept, Edit, Mark Unreadable, Request Recapture)
+const fieldReviewSchema = z.object({
+  fieldId: z.string().min(1),
+  action: z.enum(['ACCEPT', 'EDIT', 'MARK_UNREADABLE', 'REQUEST_RECAPTURE']),
+  inspectorValue: z.string().optional(),
+  reason: z.string().optional(),
+  notes: z.string().optional()
+});
+
+router.post('/:id/field-review', authorizeRoles('inspector'), async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    const inspectionId = req.params.id;
+    const validatedData = fieldReviewSchema.parse(req.body);
+
+    const result = await inspectionService.updateFieldReview(inspectionId, userId, validatedData);
+    res.json(result);
+  } catch (error: any) {
+    if (error instanceof z.ZodError) {
+      return res.status(422).json({ success: false, error: 'Validation failed', details: error.issues });
+    }
+    logger.error('Error updating field review:', error);
+    res.status(400).json({ success: false, error: error.message || 'Failed to update field review' });
+  }
+});
+
+// 3. Violation Review Action (Confirm, Reject / Override, Request Additional Evidence)
+const violationReviewSchema = z.object({
+  violationId: z.string().min(1),
+  action: z.enum(['CONFIRM', 'REJECT', 'REQUEST_ADDITIONAL_EVIDENCE']),
+  overrideReason: z.string().optional()
+});
+
+router.post('/:id/violation-review', authorizeRoles('inspector'), async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    const inspectionId = req.params.id;
+    const validatedData = violationReviewSchema.parse(req.body);
+
+    const result = await inspectionService.updateViolationReview(inspectionId, userId, validatedData);
+    res.json(result);
+  } catch (error: any) {
+    if (error instanceof z.ZodError) {
+      return res.status(422).json({ success: false, error: 'Validation failed', details: error.issues });
+    }
+    logger.error('Error updating violation review:', error);
+    res.status(400).json({ success: false, error: error.message || 'Failed to update violation review' });
+  }
+});
+
+// 4. Submit Final Decision (Enforces Non-Negotiable Guardrails)
+const decisionSubmissionSchema = z.object({
+  decision: z.enum([
+    'DRAFT', 
+    'UNDER_REVIEW', 
+    'REQUIRES_EVIDENCE', 
+    'COMPLIANT', 
+    'NON_COMPLIANT', 
+    'INCONCLUSIVE', 
+    'CLOSED'
+  ]),
+  reason: z.string().min(5, 'Mandatory statutory justification reason must be at least 5 characters long'),
+  changedFields: z.array(z.any()).optional(),
+  violationDecisions: z.array(z.any()).optional()
+});
+
+router.post('/:id/decision', authorizeRoles('inspector'), async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    const inspectionId = req.params.id;
+    const validatedData = decisionSubmissionSchema.parse(req.body);
+
+    const result = await inspectionService.submitFinalDecision(inspectionId, userId, validatedData);
+    res.json(result);
+  } catch (error: any) {
+    if (error instanceof z.ZodError) {
+      return res.status(422).json({ success: false, error: 'Validation failed', details: error.issues });
+    }
+    logger.error('Error submitting final decision:', error);
+    res.status(400).json({ success: false, error: error.message || 'Failed to submit final decision' });
+  }
+});
+
+// 5. Attach Additional Evidence (Without Losing Existing Evidence)
+const additionalEvidenceSchema = z.object({
+  storageKey: z.string().optional(),
+  localFilePath: z.string().optional(),
+  captureSide: z.string().optional(),
+  mimeType: z.string().optional(),
+  fileSize: z.number().optional(),
+  sha256Hash: z.string().optional(),
+  qualityScore: z.number().optional(),
+  notes: z.string().optional()
+});
+
+router.post('/:id/additional-evidence', authorizeRoles('inspector'), async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    const inspectionId = req.params.id;
+    const validatedData = additionalEvidenceSchema.parse(req.body);
+
+    const result = await inspectionService.attachAdditionalEvidence(inspectionId, userId, validatedData);
+    res.status(201).json(result);
+  } catch (error: any) {
+    logger.error('Error attaching additional evidence:', error);
+    res.status(400).json({ success: false, error: error.message || 'Failed to attach additional evidence' });
+  }
+});
+
+// 6. Fetch Full Immutable Audit Trail
+router.get('/:id/audit-trail', authorizeRoles('inspector', 'regulator'), async (req: AuthRequest, res) => {
+  try {
+    const inspectionId = req.params.id;
+    const auditData = await inspectionService.getAuditTrail(inspectionId);
+    res.json({
+      success: true,
+      data: auditData
+    });
+  } catch (error: any) {
+    logger.error('Error fetching audit trail:', error);
+    res.status(500).json({ success: false, error: error.message || 'Failed to fetch audit trail' });
+  }
+});
+
+export default router;

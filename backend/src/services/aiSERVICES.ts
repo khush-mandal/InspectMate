@@ -33,5 +33,5 @@ export async function analyzeImageQuality(base64Image: string, mimeType: string 
     },
   });
 
-  return JSON.parse(response.text);
+  return JSON.parse(response.text || '{}');
 }

@@ -16,7 +16,6 @@ const BarcodeResultSchema = new Schema(
   { timestamps: true, strict: true }
 );
 
-BarcodeResultSchema.index({ inspectionId: 1 });
 BarcodeResultSchema.index({ evidenceId: 1 });
 
 export const BarcodeResult = mongoose.model<IBarcodeResultDocument>('BarcodeResult', BarcodeResultSchema);

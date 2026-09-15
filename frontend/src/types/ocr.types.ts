@@ -1,4 +1,5 @@
 import { ExtractedField, BarcodeResult } from './domain.types';
+import { ComplianceEvaluation } from '../services/compliance/types';
 export type { ExtractedField };
 
 export type FieldTarget = 
@@ -52,6 +53,7 @@ export interface ExtractionResult {
   inspectionId: string;
   fields: ExtractedField[];
   barcodeResult?: BarcodeResult;
+  complianceEvaluation?: ComplianceEvaluation;
   overallConfidence: number;
   status: 'SUCCESS' | 'PARTIAL' | 'FAILED' | 'RECAPTURE_NEEDED';
   message?: string;

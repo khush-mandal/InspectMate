@@ -9,6 +9,8 @@ import { BarcodeDecoder } from '../barcode/BarcodeDecoder';
 import { IProductLookupProvider } from '../barcode/ProductLookupProvider';
 import { ApiProductLookupProvider } from '../barcode/ApiProductLookupProvider';
 import { VisionApiClient } from '../vision/VisionApiClient';
+import { ComplianceEngine } from '../compliance/ComplianceEngine';
+import { FSSAI_RULES } from '../compliance/defaultRules';
 
 export class OcrPipeline {
   private engine: IOcrEngine;
@@ -124,7 +126,24 @@ export class OcrPipeline {
         });
       }
 
-      // 5. Evaluate Overall Results
+      // 5. Run Compliance Engine
+      const complianceData: Record<string, any> = {};
+      extractedFields.forEach(f => {
+          complianceData[f.fieldName] = f.value || f.normalizedValue;
+      });
+      
+      const complianceEvaluation = ComplianceEngine.evaluateInspection(
+          complianceData,
+          {
+              jurisdiction: 'India',
+              category: 'ALL',
+              regulationVersion: '2011-v1',
+              inspectionDate: new Date().toISOString()
+          },
+          FSSAI_RULES
+      );
+
+      // 6. Evaluate Overall Results
       const hasFailedFields = extractedFields.some(f => f.needsVerification);
       const overallConfidence = rawResult.confidence;
 
@@ -133,8 +152,9 @@ export class OcrPipeline {
         inspectionId: evidenceRecord.inspectionId,
         fields: extractedFields,
         barcodeResult: barcodeResult || undefined,
+        complianceEvaluation,
         overallConfidence,
-        status: hasFailedFields ? 'PARTIAL' : 'SUCCESS',
+        status: hasFailedFields || complianceEvaluation.overallStatus === 'NON_COMPLIANT' ? 'PARTIAL' : 'SUCCESS',
         processingTimeMs: Math.round(performance.now() - startTime),
         modelVersion: 'v1.0'
       };

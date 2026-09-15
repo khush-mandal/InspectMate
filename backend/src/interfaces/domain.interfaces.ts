@@ -157,12 +157,82 @@ export interface IViolation {
   description: string;
 }
 
+export type FinalDecisionState = 
+  | 'DRAFT' 
+  | 'UNDER_REVIEW' 
+  | 'REQUIRES_EVIDENCE' 
+  | 'COMPLIANT' 
+  | 'NON_COMPLIANT' 
+  | 'INCONCLUSIVE' 
+  | 'CLOSED';
+
+export type FieldReviewAction = 'ACCEPT' | 'EDIT' | 'MARK_UNREADABLE' | 'REQUEST_RECAPTURE';
+export type FieldReviewStatus = 'PENDING' | 'ACCEPTED' | 'EDITED' | 'UNREADABLE' | 'RECAPTURE_REQUESTED';
+
+export type ViolationReviewAction = 'CONFIRM' | 'REJECT' | 'REQUEST_ADDITIONAL_EVIDENCE';
+export type ViolationReviewStatus = 'PENDING' | 'CONFIRMED' | 'REJECTED' | 'REQUIRES_EVIDENCE';
+
+export interface IReviewableField {
+  fieldId: string;
+  fieldName: string;
+  machineValue: string;
+  inspectorValue?: string;
+  confidence: number;
+  status: FieldReviewStatus;
+  notes?: string;
+  boundingBox?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+  sourceAngle?: string;
+  sourceEvidenceId?: Types.ObjectId | string;
+  ruleReference?: string;
+}
+
+export interface IReviewableViolation {
+  violationId: string;
+  ruleId: string;
+  ruleName: string;
+  regulationReference: string;
+  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  description: string;
+  status: ViolationReviewStatus;
+  overrideReason?: string;
+  affectedFields?: string[];
+  evidenceIds?: string[];
+}
+
+export interface IFieldModificationRecord {
+  fieldName: string;
+  originalValue: string; // machineValue
+  newValue: string;      // inspectorValue or empty/action label
+  action: FieldReviewAction;
+  reason?: string;
+  timestamp: Date;
+}
+
+export interface IViolationDecisionRecord {
+  violationId: string;
+  ruleId: string;
+  action: ViolationReviewAction;
+  reason?: string;
+  timestamp: Date;
+}
+
 export interface IInspectorDecision {
   _id: Types.ObjectId;
   inspectionId: Types.ObjectId;
+  inspectorId: string;
+  decision: FinalDecisionState;
+  reason: string;
+  changedFields: IFieldModificationRecord[];
+  violationDecisions?: IViolationDecisionRecord[];
+  timestamp: Date;
   violationId?: Types.ObjectId;
-  decision: 'VERIFIED_VIOLATION' | 'DISMISSED' | 'REQUEST_MORE_EVIDENCE';
   notes?: string;
   createdAt: Date;
   updatedAt: Date;
 }
+

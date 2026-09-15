@@ -87,6 +87,7 @@ export interface ExtractedField {
   needsVerification: boolean;
   barcodeReferenceValue?: string;
   hasConflict?: boolean;
+  visionCrossCheck?: string;
 }
 
 export interface OCRResult {
@@ -158,12 +159,82 @@ export interface Violation {
   description: string;
 }
 
+export type FinalDecisionState = 
+  | 'DRAFT' 
+  | 'UNDER_REVIEW' 
+  | 'REQUIRES_EVIDENCE' 
+  | 'COMPLIANT' 
+  | 'NON_COMPLIANT' 
+  | 'INCONCLUSIVE' 
+  | 'CLOSED';
+
+export type FieldReviewAction = 'ACCEPT' | 'EDIT' | 'MARK_UNREADABLE' | 'REQUEST_RECAPTURE';
+export type FieldReviewStatus = 'PENDING' | 'ACCEPTED' | 'EDITED' | 'UNREADABLE' | 'RECAPTURE_REQUESTED';
+
+export type ViolationReviewAction = 'CONFIRM' | 'REJECT' | 'REQUEST_ADDITIONAL_EVIDENCE';
+export type ViolationReviewStatus = 'PENDING' | 'CONFIRMED' | 'REJECTED' | 'REQUIRES_EVIDENCE';
+
+export interface ReviewableField {
+  fieldId: string;
+  fieldName: string;
+  machineValue: string;
+  inspectorValue?: string;
+  confidence: number;
+  status: FieldReviewStatus;
+  notes?: string;
+  boundingBox?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+  sourceAngle?: string;
+  sourceEvidenceId?: string;
+  ruleReference?: string;
+}
+
+export interface ReviewableViolation {
+  violationId: string;
+  ruleId: string;
+  ruleName: string;
+  regulationReference: string;
+  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  description: string;
+  status: ViolationReviewStatus;
+  overrideReason?: string;
+  affectedFields?: string[];
+  evidenceIds?: string[];
+}
+
+export interface FieldModificationRecord {
+  fieldName: string;
+  originalValue: string;
+  newValue: string;
+  action: FieldReviewAction;
+  reason?: string;
+  timestamp: string | Date;
+}
+
+export interface ViolationDecisionRecord {
+  violationId: string;
+  ruleId: string;
+  action: ViolationReviewAction;
+  reason?: string;
+  timestamp: string | Date;
+}
+
 export interface InspectorDecision {
   id: string;
   inspectionId: string;
+  inspectorId: string;
+  decision: FinalDecisionState;
+  reason: string;
+  changedFields: FieldModificationRecord[];
+  violationDecisions?: ViolationDecisionRecord[];
+  timestamp: string | Date;
   violationId?: string;
-  decision: 'VERIFIED_VIOLATION' | 'DISMISSED' | 'REQUEST_MORE_EVIDENCE';
   notes?: string;
   createdAt: Date;
   updatedAt: Date;
 }
+

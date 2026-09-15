@@ -31,7 +31,6 @@ const OCRResultSchema = new Schema(
   { timestamps: true, strict: true }
 );
 
-OCRResultSchema.index({ inspectionId: 1 });
 OCRResultSchema.index({ evidenceId: 1 });
 
 export const OCRResult = mongoose.model<IOCRResultDocument>('OCRResult', OCRResultSchema);
