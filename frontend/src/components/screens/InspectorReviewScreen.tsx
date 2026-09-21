@@ -47,6 +47,7 @@ import {
 } from '../../types/domain.types';
 import { inspectionReviewService, ReviewBundleResponse } from '../../services/inspectionReview.service';
 import { useAuth } from '../../context/AuthContext';
+import { useEvidenceCapture } from '../../context/EvidenceCaptureContext';
 
 interface InspectorReviewScreenProps {
   product: ProductSample;
@@ -62,6 +63,7 @@ export const InspectorReviewScreen: React.FC<InspectorReviewScreenProps> = ({
   onNavigate
 }) => {
   const { user } = useAuth();
+  const { previewUrls, extractedData, complianceSummary } = useEvidenceCapture();
   const inspectorId = user?.id || 'OFFICER-LM-4091';
   const inspectorName = user?.name || 'Authorized Legal Metrology Officer';
 
@@ -122,9 +124,65 @@ export const InspectorReviewScreen: React.FC<InspectorReviewScreenProps> = ({
       }
       setLoading(false);
     } catch (err: any) {
-      console.error('Error loading review bundle:', err);
-      // Fallback to offline/mock data if network fails
-      setFields([
+      console.warn('Backend review bundle not found, using live session data or local fallback:', err);
+
+      const liveFields: ReviewableField[] = extractedData ? [
+        {
+          fieldId: 'field-mrp',
+          fieldName: 'Maximum Retail Price (MRP)',
+          machineValue: extractedData.mrp || 'Not detected on package',
+          inspectorValue: extractedData.mrp || '',
+          confidence: extractedData.mrp ? 96 : 30,
+          status: extractedData.mrp ? 'ACCEPTED' : 'UNREADABLE',
+          sourceAngle: 'Back',
+          ruleReference: 'PCR 2011 - Rule 6(1)(e)',
+          boundingBox: { x: 55, y: 65, width: 35, height: 18 }
+        },
+        {
+          fieldId: 'field-net-qty',
+          fieldName: 'Net Quantity',
+          machineValue: extractedData.netQuantity || 'Not detected',
+          inspectorValue: extractedData.netQuantity || '',
+          confidence: extractedData.netQuantity ? 94 : 35,
+          status: 'ACCEPTED',
+          sourceAngle: 'Front',
+          ruleReference: 'PCR 2011 - Rule 6(1)(c) & Rule 12',
+          boundingBox: { x: 15, y: 75, width: 28, height: 12 }
+        },
+        {
+          fieldId: 'field-mfg',
+          fieldName: 'Name & Address of Manufacturer',
+          machineValue: extractedData.manufacturer || 'Not detected',
+          inspectorValue: extractedData.manufacturer || '',
+          confidence: extractedData.manufacturer ? 90 : 30,
+          status: 'ACCEPTED',
+          sourceAngle: 'Back',
+          ruleReference: 'PCR 2011 - Rule 6(1)(a)',
+          boundingBox: { x: 10, y: 40, width: 80, height: 22 }
+        },
+        {
+          fieldId: 'field-dates',
+          fieldName: 'Date of Manufacture / Expiry',
+          machineValue: extractedData.dateInfo || 'Not detected',
+          inspectorValue: extractedData.dateInfo || '',
+          confidence: extractedData.dateInfo ? 88 : 35,
+          status: 'ACCEPTED',
+          sourceAngle: 'Side',
+          ruleReference: 'PCR 2011 - Rule 6(1)(d)',
+          boundingBox: { x: 20, y: 30, width: 60, height: 15 }
+        },
+        {
+          fieldId: 'field-care',
+          fieldName: 'Consumer Care Helpline & Email',
+          machineValue: extractedData.consumerCare || 'Not detected',
+          inspectorValue: extractedData.consumerCare || '',
+          confidence: extractedData.consumerCare ? 94 : 30,
+          status: 'ACCEPTED',
+          sourceAngle: 'Back',
+          ruleReference: 'PCR 2011 - Rule 6(1)(h)',
+          boundingBox: { x: 10, y: 80, width: 75, height: 14 }
+        }
+      ] : [
         {
           fieldId: 'field-mrp',
           fieldName: 'Maximum Retail Price (MRP)',
@@ -180,19 +238,34 @@ export const InspectorReviewScreen: React.FC<InspectorReviewScreenProps> = ({
           ruleReference: 'PCR 2011 - Rule 6(1)(n)',
           boundingBox: { x: 10, y: 80, width: 75, height: 14 }
         }
-      ]);
-      setViolations([
-        {
-          violationId: 'viol-dual-pricing',
-          ruleId: 'RULE-DUAL-PRICING',
-          ruleName: 'Prohibition of Alteration of Price / Dual Pricing',
-          regulationReference: 'Legal Metrology (Packaged Commodities) Rules, 2011 - Rule 18(1) & Rule 6(1)(e)',
-          severity: 'CRITICAL',
-          description: 'Secondary price sticker of ₹349.00 pasted over original manufacturer declaration of ₹199.00 without statutory justification.',
-          status: 'PENDING',
-          affectedFields: ['mrp']
-        }
-      ]);
+      ];
+
+      const liveViolations: ReviewableViolation[] = complianceSummary && complianceSummary.ruleResults.some(r => !r.passed)
+        ? complianceSummary.ruleResults.filter(r => !r.passed).map((r, idx) => ({
+            violationId: `viol-${r.ruleId.toLowerCase()}-${idx}`,
+            ruleId: r.ruleId,
+            ruleName: r.ruleName,
+            regulationReference: r.ruleReference,
+            severity: r.severity,
+            description: r.message,
+            status: 'PENDING',
+            affectedFields: [r.field]
+          }))
+        : [
+          {
+            violationId: 'viol-dual-pricing',
+            ruleId: 'RULE-DUAL-PRICING',
+            ruleName: 'Prohibition of Alteration of Price / Dual Pricing',
+            regulationReference: 'Legal Metrology (Packaged Commodities) Rules, 2011 - Rule 18(1) & Rule 6(1)(e)',
+            severity: 'CRITICAL',
+            description: 'Secondary price sticker of ₹349.00 pasted over original manufacturer declaration of ₹199.00 without statutory justification.',
+            status: 'PENDING',
+            affectedFields: ['mrp']
+          }
+        ];
+
+      setFields(liveFields);
+      setViolations(liveViolations);
       setLoading(false);
     }
   };
@@ -421,10 +494,16 @@ export const InspectorReviewScreen: React.FC<InspectorReviewScreenProps> = ({
 
   // Active Image Source based on angle or field
   const currentImageSrc = useMemo(() => {
+    if (selectedAngle === 'Front' && previewUrls['FRONT']) return previewUrls['FRONT'];
+    if (selectedAngle === 'Side' && previewUrls['SIDE']) return previewUrls['SIDE'];
+    if (selectedAngle === 'Back' && previewUrls['BACK']) return previewUrls['BACK'];
+    if (previewUrls['BACK'] || previewUrls['FRONT'] || previewUrls['SIDE']) {
+      return previewUrls['BACK'] || previewUrls['FRONT'] || previewUrls['SIDE'];
+    }
     if (selectedAngle === 'Front') return product.imageUrlFront;
     if (selectedAngle === 'Side') return product.imageUrlNutrition;
     return product.imageUrlBack;
-  }, [selectedAngle, product]);
+  }, [selectedAngle, previewUrls, product]);
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 animate-fade-in pb-16">

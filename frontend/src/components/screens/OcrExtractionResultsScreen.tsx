@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Scan, 
   Eye, 
@@ -9,13 +9,16 @@ import {
   Maximize2, 
   FileText,
   Sparkles,
-  Layers
+  Layers,
+  RotateCcw,
+  Loader2
 } from 'lucide-react';
 import { GlassCard } from '../common/GlassCard';
 import { GlassButton } from '../common/GlassButton';
 import { ConfidenceRing } from '../common/ConfidenceRing';
 import { INITIAL_EXTRACTED_FIELDS } from '../../data/mockData';
 import { ExtractedField, ProductSample } from '../../types';
+import { useEvidenceCapture } from '../../context/EvidenceCaptureContext';
 
 interface OcrExtractionResultsScreenProps {
   product: ProductSample;
@@ -28,8 +31,117 @@ export const OcrExtractionResultsScreen: React.FC<OcrExtractionResultsScreenProp
   onProceed,
   onNavigate
 }) => {
+  const { 
+    extractedData, 
+    previewUrls, 
+    isExtracting, 
+    performLiveExtraction 
+  } = useEvidenceCapture();
+
   const [selectedFieldId, setSelectedFieldId] = useState<string>('field-mrp');
-  const [fields] = useState<ExtractedField[]>(INITIAL_EXTRACTED_FIELDS);
+
+  // Trigger live extraction on mount if evidence is captured and not yet extracted
+  useEffect(() => {
+    if (!extractedData && !isExtracting) {
+      performLiveExtraction().catch(err => console.log('Live extraction ready on demand', err));
+    }
+  }, [extractedData, isExtracting, performLiveExtraction]);
+
+  const activePhoto = previewUrls['BACK'] || previewUrls['FRONT'] || previewUrls['SIDE'] || product.imageUrlBack;
+
+  // Build dynamic field list from live extraction if available, else fallback
+  const fields: ExtractedField[] = extractedData ? [
+    {
+      id: 'field-mrp',
+      label: 'Maximum Retail Price (MRP)',
+      ruleReference: 'PCR 2011 - Rule 6(1)(e)',
+      value: extractedData.mrp || 'Not detected on package',
+      confidence: extractedData.mrp ? 95 : 30,
+      sourceAngle: 'Back',
+      boundingBox: { x: 55, y: 18, width: 35, height: 12 },
+      status: extractedData.mrp ? 'VERIFIED' : 'FAILED',
+      complianceNote: extractedData.mrp ? 'MRP declared with statutory currency indicator' : 'Missing mandatory MRP on packaging'
+    },
+    {
+      id: 'field-dual-pricing',
+      label: 'Dual Pricing & Price Tampering',
+      ruleReference: 'PCR 2011 - Rule 18(2)',
+      value: extractedData.hasDualPricing ? 'POTENTIAL DUAL PRICING DETECTED' : 'Compliant (Single Printed Price)',
+      confidence: 92,
+      sourceAngle: 'Back',
+      boundingBox: { x: 55, y: 32, width: 35, height: 10 },
+      status: extractedData.hasDualPricing ? 'FAILED' : 'VERIFIED',
+      complianceNote: extractedData.hasDualPricing ? 'Altered price sticker identified' : 'No sticker alteration detected'
+    },
+    {
+      id: 'field-net-qty',
+      label: 'Net Quantity',
+      ruleReference: 'PCR 2011 - Rule 6(1)(c)',
+      value: extractedData.netQuantity || 'Not detected',
+      confidence: extractedData.netQuantity ? 94 : 35,
+      sourceAngle: 'Front',
+      boundingBox: { x: 12, y: 72, width: 30, height: 12 },
+      status: extractedData.netQuantity ? 'VERIFIED' : 'FAILED',
+      complianceNote: 'Standard statutory metric units verification'
+    },
+    {
+      id: 'field-mfg',
+      label: 'Manufacturer & Packer Details',
+      ruleReference: 'PCR 2011 - Rule 6(1)(a)',
+      value: extractedData.manufacturer || 'Not detected',
+      confidence: extractedData.manufacturer ? 90 : 30,
+      sourceAngle: 'Back',
+      boundingBox: { x: 15, y: 45, width: 50, height: 18 },
+      status: extractedData.manufacturer ? 'VERIFIED' : 'FAILED',
+      complianceNote: 'Registered office and corporate manufacturing identity'
+    },
+    {
+      id: 'field-date',
+      label: 'Month & Year of Manufacture',
+      ruleReference: 'PCR 2011 - Rule 6(1)(d)',
+      value: extractedData.dateInfo || 'Not detected',
+      confidence: extractedData.dateInfo ? 91 : 35,
+      sourceAngle: 'Side',
+      boundingBox: { x: 60, y: 55, width: 30, height: 12 },
+      status: extractedData.dateInfo ? 'VERIFIED' : 'FAILED',
+      complianceNote: 'Manufacturing / packaging timeline validation'
+    },
+    {
+      id: 'field-consumer-care',
+      label: 'Consumer Care & Grievance Redressal',
+      ruleReference: 'PCR 2011 - Rule 6(1)(h)',
+      value: extractedData.consumerCare || 'Not detected',
+      confidence: extractedData.consumerCare ? 89 : 30,
+      sourceAngle: 'Back',
+      boundingBox: { x: 15, y: 65, width: 45, height: 15 },
+      status: extractedData.consumerCare ? 'VERIFIED' : 'FAILED',
+      complianceNote: 'Consumer grievance contact redressal channel'
+    },
+    ...(extractedData.isEdible ? [
+      {
+        id: 'field-ingredients',
+        label: 'Ingredients List (Edible)',
+        ruleReference: 'FSSAI Reg 2.2.1',
+        value: extractedData.ingredients || 'Not declared on package',
+        confidence: extractedData.ingredients ? 93 : 25,
+        sourceAngle: 'Back' as const,
+        boundingBox: { x: 10, y: 20, width: 40, height: 25 },
+        status: (extractedData.ingredients ? 'VERIFIED' : 'FAILED') as any,
+        complianceNote: 'Mandatory ingredient composition in descending order'
+      },
+      {
+        id: 'field-nutrition',
+        label: 'Nutritional Information Table',
+        ruleReference: 'FSSAI Reg 2.2.2',
+        value: extractedData.nutritionalInfo || 'Nutrition table missing',
+        confidence: extractedData.nutritionalInfo ? 92 : 25,
+        sourceAngle: 'Side' as const,
+        boundingBox: { x: 10, y: 50, width: 40, height: 25 },
+        status: (extractedData.nutritionalInfo ? 'VERIFIED' : 'FAILED') as any,
+        complianceNote: 'Nutritional energy, protein, fat & carbohydrate panel'
+      }
+    ] : [])
+  ] : INITIAL_EXTRACTED_FIELDS;
 
   const selectedField = fields.find(f => f.id === selectedFieldId) || fields[0];
 
@@ -161,17 +273,24 @@ export const OcrExtractionResultsScreen: React.FC<OcrExtractionResultsScreenProp
             {/* Photo Canvas with Dynamic Bounding Box Overlay */}
             <div className="relative rounded-2xl overflow-hidden aspect-4/3 bg-slate-900 shadow-inner group">
               <img
-                src={
-                  selectedField.sourceAngle === 'Front'
-                    ? product.imageUrlFront
-                    : selectedField.sourceAngle === 'Side'
-                    ? product.imageUrlNutrition
-                    : product.imageUrlBack
-                }
+                src={activePhoto}
                 alt="Physical Evidence"
                 className="w-full h-full object-cover"
                 referrerPolicy="no-referrer"
               />
+
+              {/* Extraction Processing Glass Overlay */}
+              {isExtracting && (
+                <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center z-20">
+                  <div className="p-3 rounded-full bg-indigo-500/20 border border-indigo-400 text-indigo-300 animate-spin mb-3">
+                    <RotateCcw size={28} />
+                  </div>
+                  <h4 className="text-white font-bold text-sm">Multimodal AI Extracting Declarations</h4>
+                  <p className="text-xs text-slate-300 mt-1 max-w-xs">
+                    Gemini 2.5 Flash analyzing MRP, net quantity, manufacturer, dates, and statutory indicators...
+                  </p>
+                </div>
+              )}
 
               {/* Darkened backdrop except active box */}
               <div className="absolute inset-0 bg-slate-950/20 backdrop-blur-[0.5px] pointer-events-none" />

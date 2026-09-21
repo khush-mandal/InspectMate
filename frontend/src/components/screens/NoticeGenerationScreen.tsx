@@ -25,6 +25,9 @@ import { GlassButton } from '../common/GlassButton';
 import { StatusPill } from '../common/StatusPill';
 import { ProductSample } from '../../types';
 import { exportReportToPDF, downloadReportAsHTML } from '../../utils/pdfExport';
+import { useAuth } from '../../context/AuthContext';
+import { useEvidenceCapture } from '../../context/EvidenceCaptureContext';
+import { inspectionHistoryApi } from '../../services/inspectionHistoryApi.service';
 
 interface NoticeGenerationScreenProps {
   product: ProductSample;
@@ -37,6 +40,9 @@ export const NoticeGenerationScreen: React.FC<NoticeGenerationScreenProps> = ({
   inspectionId,
   onNavigate
 }) => {
+  const { user } = useAuth();
+  const { extractedData, complianceSummary, previewUrls } = useEvidenceCapture();
+
   const [copied, setCopied] = useState(false);
   const [noticeSent, setNoticeSent] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
@@ -47,15 +53,51 @@ export const NoticeGenerationScreen: React.FC<NoticeGenerationScreenProps> = ({
     year: 'numeric'
   });
 
+  const productName = extractedData?.productName || product.name;
+  const productGtin = extractedData?.barcode || product.gtin;
+  const manufacturerName = extractedData?.manufacturer || product.manufacturer;
+  const declaredMrp = extractedData?.mrp || product.declaredMrp;
+  const declaredNetQty = extractedData?.netQuantity || product.declaredNetQuantity;
+  const activeEvidencePhoto = previewUrls['BACK'] || previewUrls['FRONT'] || previewUrls['SIDE'] || product.imageUrl;
+  const finalStatus = complianceSummary?.finalStatus || (product.hasViolation ? 'POTENTIAL VIOLATION' : 'VERIFIED');
+  const inspectorDisplayName = user?.name ? `${user.name} (${user.id || 'INS-DEL-742'})` : 'Ashish Sainik (INS-DEL-742)';
+
+  const infringements = complianceSummary 
+    ? complianceSummary.ruleResults.filter(r => !r.passed)
+    : [
+        {
+          ruleId: 'LM-RULE-6-1-E',
+          ruleName: 'Prohibition of Dual Pricing & Sticker Overwrite',
+          ruleReference: 'PCR 2011 - Rule 6(1)(e)',
+          ruleVersion: '2011.v4',
+          field: 'mrp',
+          passed: false,
+          confidence: 0.95,
+          message: 'Physical sticker ₹349.00 affixed over declared pre-printed retail price ₹199.00.',
+          severity: 'CRITICAL' as const
+        },
+        {
+          ruleId: 'LM-RULE-12-2',
+          ruleName: 'Numeral & Character Height Ratio Deficit',
+          ruleReference: 'PCR 2011 - Rule 12(2)',
+          ruleVersion: '2011.v4',
+          field: 'netQuantity',
+          passed: false,
+          confidence: 0.90,
+          message: 'MRP font height measured 1.8mm; statutory minimum is 2.5mm for packages >200g.',
+          severity: 'HIGH' as const
+        }
+      ];
+
   const handleCopySummary = () => {
     const summary = `OFFICIAL REGULATORY NOTICE - FORM VIII\n` +
       `Dossier Ref: ${inspectionId}\n` +
-      `Commodity: ${product.name} (GTIN: ${product.gtin})\n` +
-      `Manufacturer: ${product.manufacturer}\n` +
+      `Commodity: ${productName} (GTIN: ${productGtin})\n` +
+      `Manufacturer: ${manufacturerName}\n` +
       `Inspected Premises: Metro SuperMart Central, Sector 18, Noida\n` +
-      `Infringement 1: Rule 6(1)(e) - Dual Pricing & MRP Alteration (Physical ₹349.00 vs Stated ₹199.00)\n` +
-      `Infringement 2: Rule 12(2) - Sub-minimum Font Height (1.8mm vs required 2.5mm)\n` +
-      `Inspector: Ashish Sainik (INS-DEL-742), Legal Metrology NCT Delhi\n` +
+      `Determination: ${finalStatus}\n` +
+      `Infringements: ${infringements.map(i => `${i.ruleReference}: ${i.message}`).join('; ')}\n` +
+      `Inspector: ${inspectorDisplayName}, Legal Metrology NCT Delhi\n` +
       `Date: ${currentDate}`;
 
     navigator.clipboard.writeText(summary);
@@ -89,8 +131,38 @@ export const NoticeGenerationScreen: React.FC<NoticeGenerationScreenProps> = ({
     });
   };
 
-  const handleSendNotice = () => {
+  const handleSendNotice = async () => {
     setNoticeSent(true);
+    try {
+      await inspectionHistoryApi.saveDossier({
+        inspectionId,
+        productName,
+        gtin: productGtin,
+        category: product.category || 'Food & Groceries',
+        manufacturer: manufacturerName,
+        retailerName: 'Metro SuperMart Central',
+        city: 'Noida, NCR',
+        declaredMrp,
+        declaredNetQuantity: declaredNetQty,
+        finalStatus: finalStatus as any,
+        decisionState: finalStatus === 'VERIFIED' ? 'COMPLIANT' : 'NON_COMPLIANT',
+        adjudicationReason: `Official regulatory review completed by ${inspectorDisplayName}. Notice Form VIII recorded under Legal Metrology Act, 2009.`,
+        notes: `Physical label inspected at Metro SuperMart Central. Infringements: ${infringements.map(i => i.ruleReference).join(', ') || 'None'}`,
+        evidenceCount: 3,
+        violationReviews: infringements.map((inf, idx) => ({
+          violationId: `viol-${inf.ruleId.toLowerCase()}-${idx}`,
+          ruleId: inf.ruleId,
+          ruleName: inf.ruleName,
+          regulationReference: inf.ruleReference,
+          severity: inf.severity,
+          description: inf.message,
+          status: 'CONFIRMED',
+          affectedFields: [inf.field]
+        }))
+      });
+    } catch (e) {
+      console.warn('Could not persist notice dispatch to MongoDB:', e);
+    }
   };
 
   return (
@@ -198,14 +270,20 @@ export const NoticeGenerationScreen: React.FC<NoticeGenerationScreenProps> = ({
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
               Authorized Inspector
             </span>
-            <p className="font-semibold text-slate-900 mt-0.5">Ashish Sainik (INS-DEL-742)</p>
+            <p className="font-semibold text-slate-900 mt-0.5">{inspectorDisplayName}</p>
           </div>
 
           <div>
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
               Regulatory Determination
             </span>
-            <p className="font-bold text-rose-800 mt-0.5">Notice Issued (Violation)</p>
+            <p className={`font-bold mt-0.5 ${
+              finalStatus === 'VERIFIED' ? 'text-emerald-700' :
+              finalStatus === 'POTENTIAL VIOLATION' ? 'text-rose-800' :
+              'text-amber-800'
+            }`}>
+              {finalStatus}
+            </p>
           </div>
         </div>
 
@@ -226,7 +304,7 @@ export const NoticeGenerationScreen: React.FC<NoticeGenerationScreenProps> = ({
               <Building2 size={13} className="text-slate-600" />
               Packer / Manufacturer Entity
             </h3>
-            <p className="font-bold text-slate-900 pt-1">{product.manufacturer}</p>
+            <p className="font-bold text-slate-900 pt-1">{manufacturerName}</p>
             <p className="text-slate-700">Industrial Area Phase 2, Okhla, New Delhi 110020</p>
             <p className="text-slate-600 font-mono text-[11px]">CIN: U15400DL2018PTC334120 • FSSAI Lic: 10019011006542</p>
           </div>
@@ -246,36 +324,40 @@ export const NoticeGenerationScreen: React.FC<NoticeGenerationScreenProps> = ({
             <div className="sm:col-span-2 grid grid-cols-2 gap-2 text-xs">
               <div>
                 <span className="text-[10px] uppercase text-slate-500 font-bold block">Commodity Description:</span>
-                <span className="font-bold text-slate-900">{product.name}</span>
+                <span className="font-bold text-slate-900">{productName}</span>
               </div>
               <div>
                 <span className="text-[10px] uppercase text-slate-500 font-bold block">Global Trade Item No (GTIN):</span>
-                <span className="font-mono font-bold text-slate-900">{product.gtin}</span>
+                <span className="font-mono font-bold text-slate-900">{productGtin}</span>
               </div>
               <div>
                 <span className="text-[10px] uppercase text-slate-500 font-bold block">Declared Net Quantity:</span>
-                <span className="font-bold text-slate-900">{product.declaredNetQuantity}</span>
+                <span className="font-bold text-slate-900">{declaredNetQty}</span>
               </div>
               <div>
                 <span className="text-[10px] uppercase text-slate-500 font-bold block">Declared MRP on Label:</span>
-                <span className="font-bold text-slate-900">{product.declaredMrp}</span>
+                <span className="font-bold text-slate-900">{declaredMrp}</span>
               </div>
             </div>
 
             {/* Macro Evidence Photo Preview */}
             <div className="border border-slate-300 rounded-lg p-1.5 bg-white flex items-center gap-3">
               <img 
-                src={product.imageUrl} 
-                alt={product.name} 
+                src={activeEvidencePhoto} 
+                alt={productName} 
                 className="w-16 h-16 object-cover rounded border border-slate-200"
                 crossOrigin="anonymous"
               />
               <div className="text-[11px] space-y-0.5">
-                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-100 text-rose-800 border border-rose-300 uppercase">
-                  Optical Evidence
+                <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase border ${
+                  finalStatus === 'VERIFIED'
+                    ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                    : 'bg-rose-100 text-rose-800 border-rose-300'
+                }`}>
+                  {finalStatus === 'VERIFIED' ? 'Audit Verified' : 'Infraction Captured'}
                 </span>
-                <p className="text-slate-700 font-medium">Sticker Overlay Detected</p>
-                <p className="text-[10px] font-mono text-slate-500">Box: [y:412, x:188]</p>
+                <p className="text-slate-700 font-medium">{finalStatus === 'VERIFIED' ? 'Declarations Compliant' : 'Discrepancy Documented'}</p>
+                <p className="text-[10px] font-mono text-slate-500">Live Optical Evidence</p>
               </div>
             </div>
           </div>
@@ -285,7 +367,7 @@ export const NoticeGenerationScreen: React.FC<NoticeGenerationScreenProps> = ({
         <div className="space-y-2 print-avoid-break">
           <h3 className="font-bold text-slate-900 uppercase tracking-wider text-xs flex items-center justify-between">
             <span>Summary of Established Statutory Infringements</span>
-            <span className="text-[10px] font-normal text-slate-500">2 Infractions Recorded</span>
+            <span className="text-[10px] font-normal text-slate-500">{infringements.length} Infraction(s) Recorded</span>
           </h3>
 
           <div className="overflow-x-auto rounded-xl border border-slate-300">
@@ -299,38 +381,36 @@ export const NoticeGenerationScreen: React.FC<NoticeGenerationScreenProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                <tr>
-                  <td className="py-3 px-3 font-mono font-bold text-rose-800">
-                    PCR 2011 - Rule 6(1)(e)
-                  </td>
-                  <td className="py-3 px-3 font-semibold text-slate-950">
-                    Prohibition of Dual Pricing & Sticker Overwrite
-                  </td>
-                  <td className="py-3 px-3 text-slate-800">
-                    Physical sticker ₹349.00 affixed over declared pre-printed retail price ₹199.00.
-                  </td>
-                  <td className="py-3 px-3 text-right">
-                    <span className="print-severity-major px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-100 text-rose-900 border border-rose-300">
-                      Major Offense
-                    </span>
-                  </td>
-                </tr>
-                <tr>
-                  <td className="py-3 px-3 font-mono font-bold text-amber-800">
-                    PCR 2011 - Rule 12(2)
-                  </td>
-                  <td className="py-3 px-3 font-semibold text-slate-950">
-                    Numeral & Character Height Ratio Deficit
-                  </td>
-                  <td className="py-3 px-3 text-slate-800">
-                    MRP font height measured 1.8mm; statutory minimum is 2.5mm for packages &gt;200g.
-                  </td>
-                  <td className="py-3 px-3 text-right">
-                    <span className="print-severity-moderate px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
-                      Moderate
-                    </span>
-                  </td>
-                </tr>
+                {infringements.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="py-4 text-center text-emerald-800 font-semibold bg-emerald-50">
+                      ✓ All statutory declarations verified compliant under Legal Metrology Rules, 2011. No infringements recorded.
+                    </td>
+                  </tr>
+                ) : (
+                  infringements.map((inf) => (
+                    <tr key={inf.ruleId}>
+                      <td className="py-3 px-3 font-mono font-bold text-rose-800">
+                        {inf.ruleReference}
+                      </td>
+                      <td className="py-3 px-3 font-semibold text-slate-950">
+                        {inf.ruleName}
+                      </td>
+                      <td className="py-3 px-3 text-slate-800">
+                        {inf.message}
+                      </td>
+                      <td className="py-3 px-3 text-right">
+                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${
+                          inf.severity === 'CRITICAL' ? 'print-severity-major bg-rose-100 text-rose-900 border-rose-300' :
+                          inf.severity === 'HIGH' ? 'print-severity-moderate bg-amber-100 text-amber-900 border-amber-300' :
+                          'bg-slate-100 text-slate-800 border-slate-300'
+                        }`}>
+                          {inf.severity}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -365,7 +445,7 @@ export const NoticeGenerationScreen: React.FC<NoticeGenerationScreenProps> = ({
                 DIGITALLY CERTIFIED & SIGNED
               </span>
             </div>
-            <p className="text-xs font-bold text-slate-950">Ashish Sainik</p>
+            <p className="text-xs font-bold text-slate-950">{user?.name || 'Ashish Sainik'}</p>
             <p className="text-[11px] text-slate-600">Legal Metrology Officer, Enforcement Wing • NCT Delhi</p>
           </div>
         </div>

@@ -1,11 +1,19 @@
 import { ApiError } from '../evidenceApi.service';
 
 export interface VisionExtractedFields {
+  productName: string | null;
+  category: string | null;
+  isEdible: boolean;
+  barcode: string | null;
   mrp: string | null;
+  hasDualPricing: boolean;
   netQuantity: string | null;
   manufacturer: string | null;
   dateInfo: string | null;
   consumerCare: string | null;
+  ingredients: string | null;
+  nutritionalInfo: string | null;
+  readabilityScore: number;
 }
 
 export class VisionApiClient {

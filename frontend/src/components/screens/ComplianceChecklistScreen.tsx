@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect } from 'react';
 import { 
   CheckCircle2, 
   XCircle, 
@@ -8,11 +8,14 @@ import {
   FileText, 
   Scale,
   Sparkles,
-  Info
+  Info,
+  AlertTriangle,
+  RotateCcw
 } from 'lucide-react';
 import { GlassCard } from '../common/GlassCard';
 import { GlassButton } from '../common/GlassButton';
 import { ProductSample } from '../../types';
+import { useEvidenceCapture } from '../../context/EvidenceCaptureContext';
 
 interface ComplianceChecklistScreenProps {
   product: ProductSample;
@@ -20,84 +23,70 @@ interface ComplianceChecklistScreenProps {
   onNavigate: (screen: number) => void;
 }
 
-interface ChecklistItem {
-  id: string;
-  declaration: string;
-  ruleReference: string;
-  status: 'PASS' | 'FAIL' | 'UNCERTAIN';
-  detectedValue: string;
-  requirement: string;
-  notes: string;
-}
-
 export const ComplianceChecklistScreen: React.FC<ComplianceChecklistScreenProps> = ({
   product,
   onProceed,
   onNavigate
 }) => {
-  const [items, setItems] = useState<ChecklistItem[]>([
-    {
-      id: 'c1',
-      declaration: 'Maximum Retail Price (MRP)',
-      ruleReference: 'PCR 2011 - Rule 6(1)(e)',
-      status: product.hasViolation ? 'FAIL' : 'PASS',
-      detectedValue: product.printedMrp,
-      requirement: 'Must include phrase "inclusive of all taxes" and comply with font height table in Schedule II.',
-      notes: product.hasViolation ? 'Potential dual pricing sticker identified.' : 'Mandatory currency symbol ₹ and tax declaration verified.'
-    },
-    {
-      id: 'c2',
-      declaration: 'Net Quantity',
-      ruleReference: 'PCR 2011 - Rule 6(1)(c) & Rule 12',
-      status: 'PASS',
-      detectedValue: product.printedNetQuantity,
-      requirement: 'Must be in standard SI units (g, kg, ml, L) positioned on the Principal Display Panel.',
-      notes: 'Unit "g" in lower case, font height ≥ 3.0mm compliant with packaging volume.'
-    },
-    {
-      id: 'c3',
-      declaration: 'Name & Address of Manufacturer / Packer',
-      ruleReference: 'PCR 2011 - Rule 6(1)(a)',
-      status: 'PASS',
-      detectedValue: product.manufacturer,
-      requirement: 'Complete postal address including PIN code & state of incorporation.',
-      notes: 'Postal address fully matched against Registrar of Companies records.'
-    },
-    {
-      id: 'c4',
-      declaration: 'Consumer Care Helpline & Email',
-      ruleReference: 'PCR 2011 - Rule 6(1)(n)',
-      status: 'PASS',
-      detectedValue: `${product.consumerCarePhone} | ${product.consumerCareEmail}`,
-      requirement: 'Name, address, telephone number and email of grievance redressal officer.',
-      notes: 'Toll-free number and active corporate domain verified.'
-    },
-    {
-      id: 'c5',
-      declaration: 'Month & Year of Manufacture / Expiry',
-      ruleReference: 'PCR 2011 - Rule 6(1)(d)',
-      status: 'PASS',
-      detectedValue: `MFD: ${product.mfd} | EXP: ${product.expiryDate}`,
-      requirement: 'Clear calendar month and year or "Best Before" duration from manufacture date.',
-      notes: 'Standard 2-digit month and 4-digit year format verified.'
-    }
-  ]);
+  const { 
+    extractedData, 
+    complianceSummary, 
+    isEvaluating, 
+    reEvaluateCompliance 
+  } = useEvidenceCapture();
 
-  const toggleStatus = (id: string) => {
-    setItems(prev => prev.map(item => {
-      if (item.id === id) {
-        const next: 'PASS' | 'FAIL' | 'UNCERTAIN' = 
-          item.status === 'PASS' ? 'FAIL' :
-          item.status === 'FAIL' ? 'UNCERTAIN' : 'PASS';
-        return { ...item, status: next };
-      }
-      return item;
-    }));
+  useEffect(() => {
+    if (!complianceSummary && extractedData) {
+      reEvaluateCompliance();
+    }
+  }, [complianceSummary, extractedData, reEvaluateCompliance]);
+
+  const finalStatus = complianceSummary?.finalStatus || 'VERIFIED';
+  const statusDescription = complianceSummary?.statusDescription || 'Statutory review ready.';
+
+  const getStatusBadge = () => {
+    switch (finalStatus) {
+      case 'VERIFIED':
+        return {
+          bg: 'bg-emerald-500/15 border-emerald-500/30 text-emerald-800',
+          badge: 'bg-emerald-600 text-white',
+          icon: <CheckCircle2 className="text-emerald-600" size={20} />,
+          title: 'VERIFIED',
+          desc: 'Evidence and statutory declarations are fully consistent and compliant.'
+        };
+      case 'POTENTIAL VIOLATION':
+        return {
+          bg: 'bg-rose-500/15 border-rose-500/30 text-rose-900',
+          badge: 'bg-rose-600 text-white',
+          icon: <XCircle className="text-rose-600" size={20} />,
+          title: 'POTENTIAL VIOLATION',
+          desc: 'Strong indication of non-compliance identified. Requires inspector verification.'
+        };
+      case 'INCONSISTENT':
+        return {
+          bg: 'bg-amber-500/15 border-amber-500/30 text-amber-900',
+          badge: 'bg-amber-600 text-white',
+          icon: <AlertTriangle className="text-amber-600" size={20} />,
+          title: 'INCONSISTENT',
+          desc: 'Different evidence sources or package declarations disagree.'
+        };
+      case 'INSUFFICIENT EVIDENCE':
+      default:
+        return {
+          bg: 'bg-slate-500/15 border-slate-500/30 text-slate-800',
+          badge: 'bg-slate-600 text-white',
+          icon: <HelpCircle className="text-slate-600" size={20} />,
+          title: 'INSUFFICIENT EVIDENCE',
+          desc: 'The package could not be reliably inspected due to blur, glare, or occlusion.'
+        };
+    }
   };
 
-  const passCount = items.filter(i => i.status === 'PASS').length;
-  const failCount = items.filter(i => i.status === 'FAIL').length;
-  const uncertainCount = items.filter(i => i.status === 'UNCERTAIN').length;
+  const statusMeta = getStatusBadge();
+  const ruleResults = complianceSummary?.ruleResults || [];
+
+  const passedCount = ruleResults.filter(r => r.passed).length;
+  const failedCount = ruleResults.filter(r => !r.passed).length;
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
@@ -113,117 +102,139 @@ export const ComplianceChecklistScreen: React.FC<ComplianceChecklistScreenProps>
             </span>
           </div>
           <p className="text-sm text-slate-600 mt-1">
-            Verification matrix against 5 mandatory packaged commodity declarations under Indian Law.
+            Verification matrix against mandatory packaged commodity declarations under statutory rules.
           </p>
         </div>
 
-        <GlassButton
-          variant="primary"
-          size="md"
-          onClick={onProceed}
-          icon={<ArrowRight size={16} />}
-        >
-          View Evidence-Backed Finding →
-        </GlassButton>
+        <div className="flex items-center gap-2">
+          <GlassButton
+            variant="secondary"
+            size="md"
+            onClick={() => reEvaluateCompliance()}
+            icon={<RotateCcw size={15} className={isEvaluating ? 'animate-spin' : ''} />}
+            disabled={isEvaluating}
+          >
+            Re-evaluate
+          </GlassButton>
+          <GlassButton
+            variant="primary"
+            size="md"
+            onClick={onProceed}
+            icon={<ArrowRight size={16} />}
+          >
+            Adjudicate Finding →
+          </GlassButton>
+        </div>
       </div>
 
-      {/* Summary Score Bar */}
-      <GlassCard className="p-4 sm:p-5 border border-white/90">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-1.5 text-teal-700 font-bold text-sm">
-              <CheckCircle2 size={18} />
-              <span>{passCount} Compliant</span>
+      {/* Authoritative 4-Tier Statutory Outcome Card */}
+      <GlassCard className={`p-5 border rounded-2xl transition-all shadow-md ${statusMeta.bg}`}>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3.5">
+            <div className="p-2.5 rounded-xl bg-white shadow-sm shrink-0 mt-0.5">
+              {statusMeta.icon}
             </div>
-            <div className="flex items-center gap-1.5 text-rose-700 font-bold text-sm">
-              <XCircle size={18} />
-              <span>{failCount} Potential Violations</span>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className={`text-xs font-black px-2.5 py-0.5 rounded-full tracking-wider ${statusMeta.badge}`}>
+                  {statusMeta.title}
+                </span>
+                <span className="text-xs font-semibold text-slate-600">
+                  {complianceSummary?.category || 'COMMODITY'}
+                </span>
+              </div>
+              <p className="text-sm font-bold text-slate-900 mt-1">
+                {statusDescription}
+              </p>
+              <p className="text-xs text-slate-600 mt-0.5">
+                {statusMeta.desc}
+              </p>
             </div>
-            {uncertainCount > 0 && (
-              <div className="flex items-center gap-1.5 text-amber-700 font-bold text-sm">
-                <HelpCircle size={18} />
-                <span>{uncertainCount} Needs Clarification</span>
+          </div>
+
+          <div className="flex sm:flex-col items-center sm:items-end gap-2 shrink-0 border-t sm:border-t-0 pt-2 sm:pt-0 border-black/10">
+            <div className="flex items-center gap-1.5 text-emerald-800 font-bold text-xs bg-white/70 px-2.5 py-1 rounded-lg">
+              <CheckCircle2 size={14} className="text-emerald-600" />
+              <span>{passedCount} Passed</span>
+            </div>
+            {failedCount > 0 && (
+              <div className="flex items-center gap-1.5 text-rose-800 font-bold text-xs bg-white/70 px-2.5 py-1 rounded-lg">
+                <XCircle size={14} className="text-rose-600" />
+                <span>{failedCount} Infringements</span>
               </div>
             )}
           </div>
-
-          <span className="text-xs text-slate-500 font-medium">
-            Click status pills below to manually adjust finding
-          </span>
         </div>
       </GlassCard>
 
-      {/* Checklist Items */}
+      {/* Dynamic Rule Results Checklist Items */}
       <div className="space-y-3.5">
-        {items.map((item) => {
-          let statusBadge = (
-            <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full bg-teal-50 text-teal-800 border border-teal-200 shadow-xs">
-              <CheckCircle2 size={14} className="text-teal-600" />
-              <span>PASS</span>
-            </span>
-          );
-
-          if (item.status === 'FAIL') {
-            statusBadge = (
-              <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full bg-rose-50 text-rose-800 border border-rose-300 shadow-xs">
-                <XCircle size={14} className="text-rose-600" />
-                <span>POTENTIAL VIOLATION</span>
-              </span>
-            );
-          } else if (item.status === 'UNCERTAIN') {
-            statusBadge = (
-              <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-900 border border-amber-300 shadow-xs">
-                <HelpCircle size={14} className="text-amber-600" />
-                <span>UNCERTAIN</span>
-              </span>
-            );
-          }
-
-          return (
-            <GlassCard
-              key={item.id}
-              className="p-5 border border-white/90 hover:border-indigo-200 transition-all"
+        {ruleResults.length === 0 ? (
+          <GlassCard className="p-8 text-center text-slate-500">
+            <Scale size={32} className="mx-auto mb-2 text-indigo-400" />
+            <p className="font-semibold text-slate-800">No active rule evaluations available</p>
+            <p className="text-xs mt-1">Capture package evidence or run AI extraction to populate statutory findings.</p>
+            <GlassButton
+              variant="secondary"
+              size="sm"
+              onClick={() => reEvaluateCompliance()}
+              className="mt-4"
+              icon={<RotateCcw size={14} />}
             >
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2.5 border-b border-slate-200/70">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-bold text-slate-900">{item.declaration}</h3>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-100 text-slate-600">
-                      {item.ruleReference}
+              Run Statutory Audit
+            </GlassButton>
+          </GlassCard>
+        ) : (
+          ruleResults.map((item) => {
+            const isPassed = item.passed;
+            return (
+              <GlassCard
+                key={item.ruleId}
+                className="p-5 border border-white/90 hover:border-indigo-200 transition-all"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2.5 border-b border-slate-200/70">
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-sm font-bold text-slate-900">{item.ruleName}</h3>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-100 text-slate-600">
+                        {item.ruleReference}
+                      </span>
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                        item.severity === 'CRITICAL' ? 'bg-rose-100 text-rose-800' :
+                        item.severity === 'HIGH' ? 'bg-amber-100 text-amber-800' :
+                        'bg-slate-100 text-slate-700'
+                      }`}>
+                        {item.severity}
+                      </span>
+                    </div>
+                  </div>
+
+                  <span className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full shadow-xs shrink-0 ${
+                    isPassed 
+                      ? 'bg-emerald-50 text-emerald-800 border border-emerald-300' 
+                      : 'bg-rose-50 text-rose-800 border border-rose-300'
+                  }`}>
+                    {isPassed ? <CheckCircle2 size={14} className="text-emerald-600" /> : <XCircle size={14} className="text-rose-600" />}
+                    <span>{isPassed ? 'VERIFIED' : 'POTENTIAL VIOLATION'}</span>
+                  </span>
+                </div>
+
+                <div className="pt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="space-y-1">
+                    <p className="text-xs text-slate-700 font-medium leading-relaxed">
+                      {item.message}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <span className="text-[10px] font-mono text-slate-500 bg-slate-50 px-2 py-1 rounded">
+                      Confidence: {Math.round(item.confidence * 100)}%
                     </span>
                   </div>
-                  <p className="text-xs text-slate-500 mt-0.5">{item.requirement}</p>
                 </div>
-
-                {/* Clickable pill to toggle status */}
-                <button
-                  type="button"
-                  onClick={() => toggleStatus(item.id)}
-                  className="self-start sm:self-center cursor-pointer hover:scale-105 active:scale-95 transition"
-                  title="Click to toggle inspector determination"
-                >
-                  {statusBadge}
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3 text-xs">
-                <div className="p-2.5 rounded-xl bg-slate-50/80 border border-slate-200/60">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                    Detected Value on Container
-                  </span>
-                  <p className="font-bold text-slate-900 mt-0.5 font-mono">{item.detectedValue}</p>
-                </div>
-
-                <div className="p-2.5 rounded-xl bg-slate-50/80 border border-slate-200/60">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                    Legal Metrology Assessment
-                  </span>
-                  <p className="text-slate-700 mt-0.5">{item.notes}</p>
-                </div>
-              </div>
-            </GlassCard>
-          );
-        })}
+              </GlassCard>
+            );
+          })
+        )}
       </div>
     </div>
   );

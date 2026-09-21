@@ -7,27 +7,55 @@ dotenv.config();
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
 export interface ExtractedFields {
+  productName: string | null;
+  category: string | null;
+  isEdible: boolean;
+  barcode: string | null;
   mrp: string | null;
+  hasDualPricing: boolean;
   netQuantity: string | null;
   manufacturer: string | null;
   dateInfo: string | null;
   consumerCare: string | null;
+  ingredients: string | null;
+  nutritionalInfo: string | null;
+  readabilityScore: number;
 }
 
 const responseSchema: Schema = {
   type: Type.OBJECT,
   properties: {
+    productName: {
+      type: Type.STRING,
+      description: "Brand and commercial product name found on the package."
+    },
+    category: {
+      type: Type.STRING,
+      description: "Product category, e.g., 'FOOD_BEVERAGE', 'COSMETICS', 'HOUSEHOLD', 'PHARMA', or 'GENERAL_COMMODITY'."
+    },
+    isEdible: {
+      type: Type.BOOLEAN,
+      description: "True if this is a food, drink, snack, or edible commodity; false otherwise."
+    },
+    barcode: {
+      type: Type.STRING,
+      description: "Barcode or GTIN numeric digits visible on the packaging, or null."
+    },
     mrp: {
       type: Type.STRING,
-      description: "The Maximum Retail Price (MRP) found on the packaging. Include currency symbol if present."
+      description: "The Maximum Retail Price (MRP) found on the packaging. Include currency symbol (e.g. ₹) and tax statement if present."
+    },
+    hasDualPricing: {
+      type: Type.BOOLEAN,
+      description: "True if there is evidence of an altered price sticker pasted over an original printed price, or conflicting prices."
     },
     netQuantity: {
       type: Type.STRING,
-      description: "The net quantity or weight (e.g. 500g, 1L, 100ml)."
+      description: "The net quantity or weight (e.g., '500 g', '1 L', '750 ml')."
     },
     manufacturer: {
       type: Type.STRING,
-      description: "The name and address of the manufacturer or marketer."
+      description: "The name and full registered address of the manufacturer, packer, or importer."
     },
     dateInfo: {
       type: Type.STRING,
@@ -35,10 +63,36 @@ const responseSchema: Schema = {
     },
     consumerCare: {
       type: Type.STRING,
-      description: "Consumer care details such as email, phone number, or address."
+      description: "Consumer care details including phone number, email address, or redressal officer contact."
+    },
+    ingredients: {
+      type: Type.STRING,
+      description: "List of ingredients declared on the package, especially for edible products."
+    },
+    nutritionalInfo: {
+      type: Type.STRING,
+      description: "Nutritional information declaration (Energy, Protein, Carbohydrates, Fat, etc.) for edible commodities."
+    },
+    readabilityScore: {
+      type: Type.NUMBER,
+      description: "Confidence/legibility score from 0 to 100 on how clearly the statutory text is printed and visible."
     }
   },
-  required: ["mrp", "netQuantity", "manufacturer", "dateInfo", "consumerCare"]
+  required: [
+    "productName",
+    "category",
+    "isEdible",
+    "barcode",
+    "mrp",
+    "hasDualPricing",
+    "netQuantity",
+    "manufacturer",
+    "dateInfo",
+    "consumerCare",
+    "ingredients",
+    "nutritionalInfo",
+    "readabilityScore"
+  ]
 };
 
 export class VisionExtractionService {
@@ -53,9 +107,20 @@ export class VisionExtractionService {
         throw new Error("GEMINI_API_KEY is not configured.");
       }
 
-      const prompt = `You are a compliance AI designed to read packaging labels. 
-Extract the MRP, net quantity, manufacturer details, dates, and consumer care information from this image.
-If a field is not found or unreadable, return null for that field.`;
+      const prompt = `You are an expert Legal Metrology and statutory packaging compliance auditor.
+Analyze this captured commercial package image and extract all statutory declarations into the requested schema:
+1. Product name and brand.
+2. Commodity category (e.g. FOOD_BEVERAGE, COSMETICS, HOUSEHOLD, or GENERAL_COMMODITY). Set isEdible=true if edible/food/drink.
+3. Barcode digits if visible on the package.
+4. Maximum Retail Price (MRP). Check if it includes "incl. of all taxes".
+5. Detect if there is dual pricing or an altered price sticker placed over the printed label (set hasDualPricing=true).
+6. Net Quantity (with standard statutory unit like g, kg, ml, L, or N).
+7. Complete manufacturer/packer/importer name and registered address.
+8. Dates: Manufacturing date (MFD), Expiry, or Best Before.
+9. Consumer Care grievance details: helpline phone, email, or contact address.
+10. If this is an edible product, extract the Ingredients list and Nutritional Information table. If not present or not an edible product, return null.
+11. Rate overall text readability score from 0 to 100 based on blur, lighting, and clarity.
+If any specific field is absent or completely illegible, return null for that field.`;
 
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash',

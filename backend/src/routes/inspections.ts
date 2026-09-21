@@ -113,6 +113,62 @@ router.get('/dashboard', authorizeRoles('inspector'), async (req: AuthRequest, r
 });
 
 // ==========================================
+// SCREEN 17: INSPECTION HISTORY & DOSSIER REPOSITORY
+// ==========================================
+router.get('/', authorizeRoles('inspector', 'regulator'), async (req: AuthRequest, res) => {
+  try {
+    const { search, status, page, limit } = req.query;
+    const result = await inspectionService.getInspections({
+      search: typeof search === 'string' ? search : undefined,
+      status: typeof status === 'string' ? status : undefined,
+      page: page ? parseInt(page as string, 10) : 1,
+      limit: limit ? parseInt(limit as string, 10) : 50
+    });
+
+    res.json({
+      success: true,
+      ...result
+    });
+  } catch (error: any) {
+    logger.error('Error listing inspections:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch inspection history', details: error.message });
+  }
+});
+
+// ==========================================
+// SCREEN 18: REGULATORY ENFORCEMENT ANALYTICS
+// ==========================================
+router.get('/analytics', authorizeRoles('inspector', 'regulator'), async (req: AuthRequest, res) => {
+  try {
+    const analytics = await inspectionService.getRegulatoryAnalytics();
+    res.json({
+      success: true,
+      data: analytics
+    });
+  } catch (error: any) {
+    logger.error('Error fetching regulatory analytics:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch regulatory analytics', details: error.message });
+  }
+});
+
+// ==========================================
+// SAVE INSPECTION DOSSIER (LIVE FIELD PERSISTENCE)
+// ==========================================
+router.post('/save-dossier', authorizeRoles('inspector'), async (req: AuthRequest, res) => {
+  try {
+    const userId = req.user!.userId;
+    const saved = await inspectionService.saveInspectionDossier(req.body, userId);
+    res.json({
+      success: true,
+      data: saved
+    });
+  } catch (error: any) {
+    logger.error('Error saving inspection dossier:', error);
+    res.status(500).json({ success: false, error: 'Failed to save inspection dossier' });
+  }
+});
+
+// ==========================================
 // NEW ROUTE: REAL GEMINI QUALITY ANALYSIS API
 // ==========================================
 router.post('/analyze-quality', authorizeRoles('inspector'), async (req: AuthRequest, res) => {

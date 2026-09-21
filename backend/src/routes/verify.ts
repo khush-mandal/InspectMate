@@ -6,27 +6,12 @@ const router = express.Router();
 
 router.post('/', async (req: Request, res: Response) => {
   try {
-    const { mrp, netQuantity, manufacturer, dateInfo, consumerCare } = req.body;
-    
-    const evaluationData: EvaluationInput = {
-      mrp,
-      netQuantity,
-      manufacturer,
-      dateInfo,
-      consumerCare
-    };
-
-    const results = await RulesEngine.evaluate(evaluationData);
-    
-    const passedAll = results.every(r => r.passed);
-    const finalStatus = passedAll ? 'VERIFIED' : 'POTENTIAL_VIOLATION';
+    const evaluationData: EvaluationInput = req.body;
+    const summary = await RulesEngine.evaluate(evaluationData);
 
     return res.json({ 
       success: true, 
-      data: {
-        finalStatus,
-        ruleResults: results
-      }
+      data: summary
     });
   } catch (error: any) {
     logger.error('Error in /verify rules endpoint:', error);

@@ -12,23 +12,32 @@ import { evidenceRepository, SaveEvidenceInput } from '../services/EvidenceRepos
 import { syncCoordinator } from '../services/sync/SyncCoordinator';
 import { useAuth } from './AuthContext';
 
+import { VisionApiClient, VisionExtractedFields } from '../services/vision/VisionApiClient';
+import { ComplianceApiClient, StatutoryComplianceResponse } from '../services/compliance/complianceApi.service';
+import { mediaBlobStore } from '../services/storage/MediaBlobStore';
+
 export const CAPTURE_REQUIREMENTS: CaptureRequirement[] = [
   { id: 'FRONT', label: '1. Front (PDP)', description: 'Capture the front of the package.', required: true },
   { id: 'BACK', label: '2. Back Panel', description: 'Capture the back where mandatory declarations may appear.', required: true },
   { id: 'SIDE', label: '3. Side / Date Stamp', description: 'Capture the side panel if additional declarations are present.', required: false }
 ];
 
-interface EvidenceCaptureState {
+export interface EvidenceCaptureState {
   inspectionId: string;
   evidence: Record<string, LocalEvidenceRecord>;
+  previewUrls: Record<string, string>;
   currentSlot: CaptureSlotId | null;
   captureMode: CaptureMode | null;
   barcodeResult: BarcodeResult | null;
+  extractedData: VisionExtractedFields | null;
+  complianceSummary: StatutoryComplianceResponse | null;
+  isExtracting: boolean;
+  isEvaluating: boolean;
   syncSummary: SyncSummary;
   isSyncing: boolean;
 }
 
-interface EvidenceCaptureContextType extends EvidenceCaptureState {
+export interface EvidenceCaptureContextType extends EvidenceCaptureState {
   startCaptureSession: (inspectionId: string) => void;
   selectSlot: (slotId: CaptureSlotId | null) => void;
   setCaptureMode: (mode: CaptureMode | null) => void;
@@ -38,6 +47,11 @@ interface EvidenceCaptureContextType extends EvidenceCaptureState {
   setBarcodeResult: (result: BarcodeResult | null) => void;
   syncNow: () => Promise<void>;
   resetSession: () => void;
+  performLiveExtraction: () => Promise<VisionExtractedFields | null>;
+  updateExtractedField: (field: keyof VisionExtractedFields, value: any) => void;
+  reEvaluateCompliance: (data?: VisionExtractedFields) => Promise<StatutoryComplianceResponse | null>;
+  setExtractedData: (data: VisionExtractedFields | null) => void;
+  setComplianceSummary: (summary: StatutoryComplianceResponse | null) => void;
   summary: {
     requiredCompleted: number;
     requiredTotal: number;
@@ -56,9 +70,14 @@ export const EvidenceCaptureProvider: React.FC<{ children: ReactNode }> = ({ chi
   const [state, setState] = useState<EvidenceCaptureState>({
     inspectionId: '',
     evidence: {},
+    previewUrls: {},
     currentSlot: null,
     captureMode: null,
     barcodeResult: null,
+    extractedData: null,
+    complianceSummary: null,
+    isExtracting: false,
+    isEvaluating: false,
     syncSummary: {
       total: 0,
       synced: 0,
@@ -80,9 +99,19 @@ export const EvidenceCaptureProvider: React.FC<{ children: ReactNode }> = ({ chi
     if (!inspectionId) return;
     const items = await evidenceRepository.getEvidenceForInspection(inspectionId, userId);
     const map: Record<string, LocalEvidenceRecord> = {};
-    items.forEach(item => {
+    const previews: Record<string, string> = {};
+
+    for (const item of items) {
       map[item.slotId] = item;
-    });
+      try {
+        const previewUrl = await mediaBlobStore.createPreviewUrl(item.localMediaId);
+        if (previewUrl) {
+          previews[item.slotId] = previewUrl;
+        }
+      } catch (err) {
+        console.warn('Could not generate preview for media', item.localMediaId, err);
+      }
+    }
 
     const summary = await syncCoordinator.getSyncSummary(inspectionId);
 
@@ -90,6 +119,7 @@ export const EvidenceCaptureProvider: React.FC<{ children: ReactNode }> = ({ chi
       ...prev,
       inspectionId,
       evidence: map,
+      previewUrls: { ...prev.previewUrls, ...previews },
       syncSummary: summary,
       isSyncing: summary.syncing > 0
     }));
@@ -123,12 +153,21 @@ export const EvidenceCaptureProvider: React.FC<{ children: ReactNode }> = ({ chi
       userId
     });
 
+    let previewUrl = '';
+    try {
+      const generated = await mediaBlobStore.createPreviewUrl(savedRecord.localMediaId);
+      if (generated) previewUrl = generated;
+    } catch (e) {
+      console.warn('Could not generate preview URL:', e);
+    }
+
     setState(prev => ({
       ...prev,
       evidence: {
         ...prev.evidence,
         [savedRecord.slotId]: savedRecord
       },
+      previewUrls: previewUrl ? { ...prev.previewUrls, [savedRecord.slotId]: previewUrl } : prev.previewUrls,
       currentSlot: null,
       captureMode: null
     }));
@@ -155,8 +194,10 @@ export const EvidenceCaptureProvider: React.FC<{ children: ReactNode }> = ({ chi
     }
     setState(prev => {
       const newEvidence = { ...prev.evidence };
+      const newPreviews = { ...prev.previewUrls };
       delete newEvidence[slotId];
-      return { ...prev, evidence: newEvidence };
+      delete newPreviews[slotId];
+      return { ...prev, evidence: newEvidence, previewUrls: newPreviews };
     });
     if (state.inspectionId) {
       loadEvidenceForInspection(state.inspectionId);
@@ -166,6 +207,78 @@ export const EvidenceCaptureProvider: React.FC<{ children: ReactNode }> = ({ chi
   const setBarcodeResult = useCallback((result: BarcodeResult | null) => {
     setState(prev => ({ ...prev, barcodeResult: result }));
   }, []);
+
+  const setExtractedData = useCallback((data: VisionExtractedFields | null) => {
+    setState(prev => ({ ...prev, extractedData: data }));
+  }, []);
+
+  const setComplianceSummary = useCallback((summary: StatutoryComplianceResponse | null) => {
+    setState(prev => ({ ...prev, complianceSummary: summary }));
+  }, []);
+
+  const reEvaluateCompliance = useCallback(async (customData?: VisionExtractedFields): Promise<StatutoryComplianceResponse | null> => {
+    const targetData = customData || state.extractedData;
+    if (!targetData) return null;
+
+    setState(prev => ({ ...prev, isEvaluating: true }));
+    try {
+      const summary = await ComplianceApiClient.evaluateDeclarations(targetData);
+      setState(prev => ({ ...prev, complianceSummary: summary, isEvaluating: false }));
+      return summary;
+    } catch (err) {
+      console.error('Failed to re-evaluate compliance:', err);
+      setState(prev => ({ ...prev, isEvaluating: false }));
+      return null;
+    }
+  }, [state.extractedData]);
+
+  const performLiveExtraction = useCallback(async (): Promise<VisionExtractedFields | null> => {
+    // Pick the best available slot: Back panel is highest probability for statutory declarations, then Front or Side
+    const targetSlot: CaptureSlotId = state.evidence['BACK'] ? 'BACK' : state.evidence['FRONT'] ? 'FRONT' : 'SIDE';
+    const record = state.evidence[targetSlot];
+
+    if (!record) {
+      console.warn('No evidence record available for extraction in slots');
+      return null;
+    }
+
+    setState(prev => ({ ...prev, isExtracting: true }));
+
+    try {
+      const blob = await mediaBlobStore.getBlob(record.localMediaId);
+      if (!blob) {
+        throw new Error('Evidence blob not found in storage');
+      }
+
+      const extracted = await VisionApiClient.extractFields(blob);
+      setState(prev => ({ ...prev, extractedData: extracted, isExtracting: false }));
+
+      // Automatically evaluate compliance on extracted fields
+      await reEvaluateCompliance(extracted);
+
+      return extracted;
+    } catch (error) {
+      console.error('Error during live extraction:', error);
+      setState(prev => ({ ...prev, isExtracting: false }));
+      throw error;
+    }
+  }, [state.evidence, reEvaluateCompliance]);
+
+  const updateExtractedField = useCallback((field: keyof VisionExtractedFields, value: any) => {
+    setState(prev => {
+      if (!prev.extractedData) return prev;
+      const updated = {
+        ...prev.extractedData,
+        [field]: value
+      };
+      // Trigger background re-evaluation with updated field
+      reEvaluateCompliance(updated);
+      return {
+        ...prev,
+        extractedData: updated
+      };
+    });
+  }, [reEvaluateCompliance]);
 
   const syncNow = useCallback(async () => {
     setState(prev => ({ ...prev, isSyncing: true }));
@@ -180,9 +293,14 @@ export const EvidenceCaptureProvider: React.FC<{ children: ReactNode }> = ({ chi
     setState({
       inspectionId: '',
       evidence: {},
+      previewUrls: {},
       currentSlot: null,
       captureMode: null,
       barcodeResult: null,
+      extractedData: null,
+      complianceSummary: null,
+      isExtracting: false,
+      isEvaluating: false,
       syncSummary: {
         total: 0,
         synced: 0,
@@ -238,6 +356,11 @@ export const EvidenceCaptureProvider: React.FC<{ children: ReactNode }> = ({ chi
       setBarcodeResult,
       syncNow,
       resetSession,
+      performLiveExtraction,
+      updateExtractedField,
+      reEvaluateCompliance,
+      setExtractedData,
+      setComplianceSummary,
       summary
     }}>
       {children}
