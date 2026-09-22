@@ -71,7 +71,9 @@ export const OcrExtractionResultsScreen: React.FC<OcrExtractionResultsScreenProp
       sourceAngle: 'Back',
       boundingBox: { x: 55, y: 32, width: 35, height: 10 },
       status: extractedData.hasDualPricing ? 'FAILED' : 'VERIFIED',
-      complianceNote: extractedData.hasDualPricing ? 'Altered price sticker identified' : 'No sticker alteration detected'
+      complianceNote: extractedData.hasDualPricing ? 'Altered price sticker identified' : 'No sticker alteration detected',
+      visionCrossCheck: true,
+      isCompliant: !extractedData.hasDualPricing
     },
     {
       id: 'field-net-qty',
@@ -82,7 +84,9 @@ export const OcrExtractionResultsScreen: React.FC<OcrExtractionResultsScreenProp
       sourceAngle: 'Front',
       boundingBox: { x: 12, y: 72, width: 30, height: 12 },
       status: extractedData.netQuantity ? 'VERIFIED' : 'FAILED',
-      complianceNote: 'Standard statutory metric units verification'
+      complianceNote: 'Standard statutory metric units verification',
+      visionCrossCheck: true,
+      isCompliant: Boolean(extractedData.netQuantity)
     },
     {
       id: 'field-mfg',
@@ -93,7 +97,9 @@ export const OcrExtractionResultsScreen: React.FC<OcrExtractionResultsScreenProp
       sourceAngle: 'Back',
       boundingBox: { x: 15, y: 45, width: 50, height: 18 },
       status: extractedData.manufacturer ? 'VERIFIED' : 'FAILED',
-      complianceNote: 'Registered office and corporate manufacturing identity'
+      complianceNote: 'Registered office and corporate manufacturing identity',
+      visionCrossCheck: true,
+      isCompliant: Boolean(extractedData.manufacturer)
     },
     {
       id: 'field-date',

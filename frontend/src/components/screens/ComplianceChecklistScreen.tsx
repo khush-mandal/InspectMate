@@ -54,7 +54,7 @@ export const ComplianceChecklistScreen: React.FC<ComplianceChecklistScreenProps>
           title: 'VERIFIED',
           desc: 'Evidence and statutory declarations are fully consistent and compliant.'
         };
-      case 'POTENTIAL VIOLATION':
+      case 'POTENTIAL_VIOLATION':
         return {
           bg: 'bg-rose-500/15 border-rose-500/30 text-rose-900',
           badge: 'bg-rose-600 text-white',
@@ -70,7 +70,7 @@ export const ComplianceChecklistScreen: React.FC<ComplianceChecklistScreenProps>
           title: 'INCONSISTENT',
           desc: 'Different evidence sources or package declarations disagree.'
         };
-      case 'INSUFFICIENT EVIDENCE':
+      case 'INSUFFICIENT_EVIDENCE':
       default:
         return {
           bg: 'bg-slate-500/15 border-slate-500/30 text-slate-800',

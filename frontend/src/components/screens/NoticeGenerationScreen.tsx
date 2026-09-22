@@ -59,7 +59,7 @@ export const NoticeGenerationScreen: React.FC<NoticeGenerationScreenProps> = ({
   const declaredMrp = extractedData?.mrp || product.declaredMrp;
   const declaredNetQty = extractedData?.netQuantity || product.declaredNetQuantity;
   const activeEvidencePhoto = previewUrls['BACK'] || previewUrls['FRONT'] || previewUrls['SIDE'] || product.imageUrl;
-  const finalStatus = complianceSummary?.finalStatus || (product.hasViolation ? 'POTENTIAL VIOLATION' : 'VERIFIED');
+  const finalStatus = complianceSummary?.finalStatus || (product.hasViolation ? 'POTENTIAL_VIOLATION' : 'VERIFIED');
   const inspectorDisplayName = user?.name ? `${user.name} (${user.id || 'INS-DEL-742'})` : 'Ashish Sainik (INS-DEL-742)';
 
   const infringements = complianceSummary 
@@ -279,7 +279,7 @@ export const NoticeGenerationScreen: React.FC<NoticeGenerationScreenProps> = ({
             </span>
             <p className={`font-bold mt-0.5 ${
               finalStatus === 'VERIFIED' ? 'text-emerald-700' :
-              finalStatus === 'POTENTIAL VIOLATION' ? 'text-rose-800' :
+              finalStatus === 'POTENTIAL_VIOLATION' ? 'text-rose-800' :
               'text-amber-800'
             }`}>
               {finalStatus}

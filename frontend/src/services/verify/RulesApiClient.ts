@@ -18,8 +18,11 @@ export interface RuleEvaluationResult {
 }
 
 export interface VerificationResponse {
-  finalStatus: 'VERIFIED' | 'POTENTIAL_VIOLATION';
+  finalStatus: 'VERIFIED' | 'POTENTIAL_VIOLATION' | 'INCONSISTENT' | 'INSUFFICIENT_EVIDENCE';
   ruleResults: RuleEvaluationResult[];
+  statusDescription?: string;
+  category?: string;
+  isEdible?: boolean;
 }
 
 export class RulesApiClient {

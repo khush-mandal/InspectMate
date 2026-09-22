@@ -1,4 +1,4 @@
-export type StatutoryOutcome = 'VERIFIED' | 'POTENTIAL VIOLATION' | 'INCONSISTENT' | 'INSUFFICIENT EVIDENCE';
+export type StatutoryOutcome = 'VERIFIED' | 'POTENTIAL_VIOLATION' | 'INCONSISTENT' | 'INSUFFICIENT_EVIDENCE';
 
 export interface RuleFindingItem {
   ruleId: string;

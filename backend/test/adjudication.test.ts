@@ -87,8 +87,8 @@ describe('Human-in-the-Loop Adjudication Integration Tests', () => {
     // Verify AuditLog was recorded
     const logs = await AuditLog.find({ inspection: inspectionId, action: 'EXTRACTED_FIELD_REVIEWED' });
     expect(logs.length).toBeGreaterThan(0);
-    expect(logs[0].metadata.machineValue).toBe('₹349.00 (Incl. of all taxes)');
-    expect(logs[0].metadata.inspectorValue).toBe('₹399.00');
+    expect(logs[0].metadata?.machineValue).toBe('₹349.00 (Incl. of all taxes)');
+    expect(logs[0].metadata?.inspectorValue).toBe('₹399.00');
   });
 
   it('3. Violation review: rejecting violation requires mandatory justification reason', async () => {

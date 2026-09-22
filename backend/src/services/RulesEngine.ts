@@ -1,7 +1,7 @@
 import { Rule, IRule } from '../db/models/Rule';
 import { logger } from '../utils/logger';
 
-export type ComplianceOutcome = 'VERIFIED' | 'POTENTIAL VIOLATION' | 'INCONSISTENT' | 'INSUFFICIENT EVIDENCE';
+export type ComplianceOutcome = 'VERIFIED' | 'POTENTIAL_VIOLATION' | 'INCONSISTENT' | 'INSUFFICIENT_EVIDENCE';
 
 export interface EvaluationInput {
   productName?: string | null;
@@ -121,7 +121,7 @@ export class RulesEngine {
         passed: mfgPresent,
         confidence: 0.88,
         message: mfgPresent
-          ? `Manufacturer/Packer identity declared: "${input.manufacturer.slice(0, 45)}...".`
+          ? `Manufacturer/Packer identity declared: "${input.manufacturer!.slice(0, 45)}...".`
           : 'Manufacturer or Packer name and full registered address missing.',
         severity: 'HIGH'
       });
@@ -153,7 +153,7 @@ export class RulesEngine {
         passed: consumerCarePresent,
         confidence: 0.91,
         message: consumerCarePresent
-          ? `Consumer grievance redressal details present: "${input.consumerCare.slice(0, 40)}...".`
+          ? `Consumer grievance redressal details present: "${input.consumerCare!.slice(0, 40)}...".`
           : 'Consumer care contact details (phone, email, or address) missing.',
         severity: 'MEDIUM'
       });
@@ -219,7 +219,7 @@ export class RulesEngine {
       let statusDescription: string;
 
       if (isInsufficient) {
-        finalStatus = 'INSUFFICIENT EVIDENCE';
+        finalStatus = 'INSUFFICIENT_EVIDENCE';
         statusDescription = 'The package could not be reliably inspected due to low text readability, extreme glare, or visual occlusion.';
       } else if (hasInconsistency) {
         finalStatus = 'INCONSISTENT';
@@ -227,7 +227,7 @@ export class RulesEngine {
       } else {
         const hasViolations = results.some(r => !r.passed);
         if (hasViolations) {
-          finalStatus = 'POTENTIAL VIOLATION';
+          finalStatus = 'POTENTIAL_VIOLATION';
           statusDescription = 'System finds strong indication of statutory non-compliance requiring inspector verification.';
         } else {
           finalStatus = 'VERIFIED';
