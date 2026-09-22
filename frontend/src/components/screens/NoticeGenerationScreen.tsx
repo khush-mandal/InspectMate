@@ -297,6 +297,7 @@ export const NoticeGenerationScreen: React.FC<NoticeGenerationScreenProps> = ({
             <p className="font-bold text-slate-900 pt-1">Metro SuperMart Central</p>
             <p className="text-slate-700">Plot 12, Sector 18 Commercial Hub, Noida, Gautam Buddha Nagar, UP 201301</p>
             <p className="text-slate-600 font-mono text-[11px]">GSTIN: 07AAACM1234F1Z8 • Trade License: TL-NOI-2024-8831</p>
+            <p className="text-slate-500 font-mono text-[10px] pt-1">Verified GPS Location: 28°34'15.2"N 77°19'19.1"E (±4m accuracy)</p>
           </div>
 
           <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-1">
