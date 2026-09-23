@@ -4,7 +4,6 @@ import { ProductSample } from '../../types';
 import { CaptureDashboard } from '../evidence-capture/CaptureDashboard';
 import { CameraScreen } from '../evidence-capture/CameraScreen';
 import { BarcodeScannerModal } from '../evidence-capture/BarcodeScannerModal';
-import { SyncStatusBar } from '../evidence-capture/SyncStatusBar';
 import { useEvidenceCapture } from '../../context/EvidenceCaptureContext';
 import { GlassButton } from '../common/GlassButton';
 import { CaptureSlotId } from '../../types/capture.types';
@@ -62,8 +61,7 @@ export const CaptureEvidenceScreen: React.FC<CaptureEvidenceScreenProps> = ({
         </div>
       </div>
 
-      {/* Offline Awareness & Synchronization Status Bar */}
-      <SyncStatusBar />
+      {/* Offline Awareness & Synchronization Status Bar (Removed by User Request) */}
 
       {/* Optional: Show Barcode Result */}
       {barcodeResult && (

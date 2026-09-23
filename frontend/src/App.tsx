@@ -3,7 +3,6 @@ import { Header } from './components/common/Header';
 import { Sidebar } from './components/common/Sidebar';
 import { BottomNav } from './components/common/BottomNav';
 import { ScreenNavigator } from './components/common/ScreenNavigator';
-import { SyncStatusBar } from './components/common/SyncStatusBar';
 
 // 19 Screens
 import { LoginScreen } from './components/screens/LoginScreen';
@@ -136,7 +135,6 @@ function AppContent() {
 
           {currentScreen !== 1 && (
             <ProtectedRoute>
-              <SyncStatusBar className="mb-4 shadow-xs" inspectionId={inspectionId} />
               {/* Screen 2: Inspector Dashboard */}
               {currentScreen === 2 && (
                 <InspectorDashboard

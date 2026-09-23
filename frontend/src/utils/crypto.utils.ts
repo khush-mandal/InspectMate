@@ -13,8 +13,8 @@ export async function calculateFileSha256(blobOrFile: Blob | File): Promise<stri
 /**
  * Calculates SHA-256 from an ArrayBuffer directly.
  */
-export async function calculateBufferSha256(buffer: ArrayBuffer): Promise<string> {
-  const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+export async function calculateBufferSha256(buffer: BufferSource | ArrayBufferLike): Promise<string> {
+  const hashBuffer = await crypto.subtle.digest('SHA-256', buffer as BufferSource);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }

@@ -47,7 +47,7 @@ export const CaptureDashboard: React.FC<CaptureDashboardProps> = ({ onCaptureReq
               className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-l-4 transition-all" 
               style={{ 
                 borderLeftColor: isCaptured 
-                  ? (item?.syncStatus === 'SYNCED' ? '#10b981' : item?.syncStatus === 'SYNC_FAILED' ? '#ef4444' : '#f59e0b') 
+                  ? '#10b981' 
                   : req.required ? '#6366f1' : '#cbd5e1' 
               }}
             >
@@ -84,53 +84,14 @@ export const CaptureDashboard: React.FC<CaptureDashboardProps> = ({ onCaptureReq
                       </span>
                     )}
 
-                    {/* Sync Status Badges */}
-                    {item?.syncStatus === 'SYNCED' && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                        <CloudCheck size={11} /> Synced
-                      </span>
-                    )}
-
-                    {item?.syncStatus === 'SYNC_PENDING' && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-800 border border-amber-200">
-                        <HardDrive size={11} /> Waiting to sync
-                      </span>
-                    )}
-
-                    {item?.syncStatus === 'SYNCING' && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-100 text-indigo-800 border border-indigo-200 animate-pulse">
-                        <RefreshCw size={11} className="animate-spin" /> Syncing...
-                      </span>
-                    )}
-
-                    {item?.syncStatus === 'SYNC_FAILED' && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-red-100 text-red-800 border border-red-200">
-                        <AlertTriangle size={11} /> Sync failed
-                      </span>
-                    )}
-
                     {isInvalid && (
                       <span className="text-xs text-red-500 font-medium">Needs attention</span>
                     )}
                   </div>
-
-                  {item?.syncStatus === 'SYNC_FAILED' && item.lastErrorMessage && (
-                    <p className="text-[11px] text-red-600 mt-1 truncate">
-                      {item.lastErrorMessage}
-                    </p>
-                  )}
                 </div>
               </div>
               
               <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
-                {item?.syncStatus === 'SYNC_FAILED' && (
-                  <button
-                    onClick={() => retryEvidence(req.id)}
-                    className="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-semibold rounded-xl border border-red-200 flex items-center gap-1.5 transition active:scale-95"
-                  >
-                    <RotateCcw size={12} /> Retry
-                  </button>
-                )}
 
                 <GlassButton 
                   variant={isCaptured ? "secondary" : "primary"} 

@@ -3,6 +3,7 @@ export interface ProductLookupResult {
   brand?: string;
   company?: string;
   category?: string;
+  netQuantity?: string;
   source: string;
 }
 

@@ -5,7 +5,7 @@ import { useEvidenceCapture } from '../../context/EvidenceCaptureContext';
 import { GlassButton } from '../common/GlassButton';
 
 interface BarcodeScannerModalProps {
-  onClose: () => void;
+  onClose: (success?: boolean) => void;
 }
 
 export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({ onClose }) => {
@@ -40,7 +40,7 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({ onClos
               
               // Play a beep sound if desired, or just close
               setTimeout(() => {
-                onClose();
+                onClose(true);
               }, 500);
             }
             if (err && err.name !== 'NotFoundException') {
@@ -69,7 +69,7 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({ onClos
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/95 flex flex-col items-center justify-center animate-fade-in backdrop-blur-sm">
       <div className="absolute top-4 right-4 z-10 text-white">
-        <button onClick={onClose} className="p-2 bg-slate-800/50 rounded-full hover:bg-slate-700/50 backdrop-blur cursor-pointer">
+        <button onClick={() => onClose(false)} className="p-2 bg-slate-800/50 rounded-full hover:bg-slate-700/50 backdrop-blur cursor-pointer">
           <X size={24} />
         </button>
       </div>
@@ -111,7 +111,7 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({ onClos
         </div>
 
         <div className="mt-8 w-full flex justify-center">
-          <GlassButton variant="secondary" onClick={onClose}>
+          <GlassButton variant="secondary" onClick={() => onClose(false)}>
             Cancel
           </GlassButton>
         </div>

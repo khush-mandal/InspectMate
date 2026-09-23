@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Barcode, 
   Search, 
@@ -15,6 +15,9 @@ import {
 import { GlassCard } from '../common/GlassCard';
 import { GlassButton } from '../common/GlassButton';
 import { ProductSample } from '../../types';
+import { useEvidenceCapture } from '../../context/EvidenceCaptureContext';
+import { ApiProductLookupProvider } from '../../services/barcode/ApiProductLookupProvider';
+import { ProductLookupResult } from '../../services/barcode/ProductLookupProvider';
 
 interface BarcodeDataLookupScreenProps {
   product: ProductSample;
@@ -27,14 +30,42 @@ export const BarcodeDataLookupScreen: React.FC<BarcodeDataLookupScreenProps> = (
   onProceed,
   onNavigate
 }) => {
-  const [gtinQuery, setGtinQuery] = useState(product.gtin);
+  const { barcodeResult } = useEvidenceCapture();
+  const [gtinQuery, setGtinQuery] = useState(barcodeResult?.rawValue || product.gtin);
   const [isQuerying, setIsQuerying] = useState(false);
+  const [realProductData, setRealProductData] = useState<ProductLookupResult | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  const fetchProductData = async (gtin: string) => {
+    setIsQuerying(true);
+    setFetchError(null);
+    try {
+      const provider = new ApiProductLookupProvider();
+      const result = await provider.lookup(gtin, 'EAN_13');
+      if (result) {
+        setRealProductData(result);
+      } else {
+        setFetchError('Product not found in registry.');
+        setRealProductData(null);
+      }
+    } catch (err) {
+      setFetchError('Error fetching product data.');
+      setRealProductData(null);
+    } finally {
+      setIsQuerying(false);
+    }
+  };
+
+  useEffect(() => {
+    if (gtinQuery) {
+      fetchProductData(gtinQuery);
+    }
+  }, []);
 
   const handleSimulateScan = () => {
-    setIsQuerying(true);
-    setTimeout(() => {
-      setIsQuerying(false);
-    }, 600);
+    if (gtinQuery) {
+      fetchProductData(gtinQuery);
+    }
   };
 
   return (
@@ -138,6 +169,24 @@ export const BarcodeDataLookupScreen: React.FC<BarcodeDataLookupScreenProps> = (
           </div>
         </div>
 
+        {fetchError && (
+          <div className="p-4 rounded-2xl glass-card border border-red-300 bg-red-50/70 text-slate-800 shadow-sm mt-4">
+             <div className="flex items-start gap-3">
+               <div className="p-2 rounded-xl bg-red-500 text-white shrink-0 mt-0.5">
+                 <AlertTriangle size={18} />
+               </div>
+               <div>
+                 <h3 className="text-sm font-extrabold text-red-950 uppercase tracking-wide">
+                   Lookup Failed
+                 </h3>
+                 <p className="text-xs text-red-900/90 mt-1 leading-relaxed">
+                   {fetchError}
+                 </p>
+               </div>
+             </div>
+           </div>
+        )}
+
         {/* Data Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/70">
@@ -145,7 +194,7 @@ export const BarcodeDataLookupScreen: React.FC<BarcodeDataLookupScreenProps> = (
               Product Description
             </span>
             <p className="text-xs font-bold text-slate-900 mt-1">
-              {product.name}
+              {realProductData?.productName || product.name}
             </p>
           </div>
 
@@ -154,7 +203,7 @@ export const BarcodeDataLookupScreen: React.FC<BarcodeDataLookupScreenProps> = (
               Registered Brand
             </span>
             <p className="text-xs font-bold text-slate-900 mt-1">
-              {product.brand}
+              {realProductData?.brand || product.brand}
             </p>
           </div>
 
@@ -163,7 +212,7 @@ export const BarcodeDataLookupScreen: React.FC<BarcodeDataLookupScreenProps> = (
               Parent Entity / Company
             </span>
             <p className="text-xs font-bold text-slate-900 mt-1">
-              {product.referenceCompany}
+              {realProductData?.company || product.referenceCompany}
             </p>
           </div>
 
@@ -172,7 +221,7 @@ export const BarcodeDataLookupScreen: React.FC<BarcodeDataLookupScreenProps> = (
               Standard Category
             </span>
             <p className="text-xs font-bold text-slate-900 mt-1">
-              {product.category}
+              {realProductData?.category || product.category}
             </p>
           </div>
 
@@ -181,7 +230,7 @@ export const BarcodeDataLookupScreen: React.FC<BarcodeDataLookupScreenProps> = (
               Registered Net Content
             </span>
             <p className="text-xs font-bold text-slate-900 mt-1 font-mono">
-              {product.referenceNetQuantity}
+              {realProductData?.netQuantity || product.referenceNetQuantity}
             </p>
           </div>
 
@@ -190,6 +239,7 @@ export const BarcodeDataLookupScreen: React.FC<BarcodeDataLookupScreenProps> = (
               Registered Maximum Retail Price
             </span>
             <p className="text-xs font-bold text-indigo-950 mt-1 font-mono">
+              {/* Not available in typical free lookup APIs; fallback to default */}
               {product.referenceMrp}
             </p>
           </div>
@@ -197,8 +247,8 @@ export const BarcodeDataLookupScreen: React.FC<BarcodeDataLookupScreenProps> = (
 
         {/* Comparison Footnote */}
         <div className="pt-3 border-t border-slate-200/70 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
-          <span>Global Trade Item Number: <strong className="font-mono text-slate-800">{product.gtin}</strong></span>
-          <span className="text-slate-400">Last verified by manufacturer: 2 weeks ago</span>
+          <span>Global Trade Item Number: <strong className="font-mono text-slate-800">{gtinQuery || product.gtin}</strong></span>
+          <span className="text-slate-400">Source: {realProductData?.source || 'Local Registry'}</span>
         </div>
       </GlassCard>
     </div>

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   Barcode, 
   QrCode, 
@@ -12,6 +12,8 @@ import {
 import { GlassCard } from '../common/GlassCard';
 import { GlassButton } from '../common/GlassButton';
 import { ProductSample } from '../../types';
+import { BarcodeScannerModal } from '../evidence-capture/BarcodeScannerModal';
+import { useEvidenceCapture } from '../../context/EvidenceCaptureContext';
 
 interface IdentifyProductScreenProps {
   onSelectMethod: (method: 'barcode' | 'qr' | 'image' | 'video') => void;
@@ -24,6 +26,9 @@ export const IdentifyProductScreen: React.FC<IdentifyProductScreenProps> = ({
   product,
   onNavigate
 }) => {
+  const [showScanner, setShowScanner] = useState(false);
+  const { barcodeResult } = useEvidenceCapture();
+
   const options = [
     {
       id: 'barcode',
@@ -35,7 +40,7 @@ export const IdentifyProductScreen: React.FC<IdentifyProductScreenProps> = ({
       badge: 'Fastest Lookup',
       action: () => {
         onSelectMethod('barcode');
-        onNavigate(10);
+        setShowScanner(true);
       }
     },
     {
@@ -48,7 +53,7 @@ export const IdentifyProductScreen: React.FC<IdentifyProductScreenProps> = ({
       badge: 'Digital Link',
       action: () => {
         onSelectMethod('qr');
-        onNavigate(10);
+        setShowScanner(true);
       }
     },
     {
@@ -80,7 +85,7 @@ export const IdentifyProductScreen: React.FC<IdentifyProductScreenProps> = ({
   ];
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 animate-fade-in">
+    <div className="max-w-4xl mx-auto space-y-6 animate-fade-in relative">
       {/* Header */}
       <div className="text-center max-w-2xl mx-auto">
         <span className="text-xs font-bold uppercase tracking-wider text-indigo-700 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-200">
@@ -172,6 +177,17 @@ export const IdentifyProductScreen: React.FC<IdentifyProductScreenProps> = ({
           Proceed to Evidence Capture →
         </GlassButton>
       </GlassCard>
+
+      {showScanner && (
+        <BarcodeScannerModal
+          onClose={(success?: boolean) => {
+            setShowScanner(false);
+            if (success) {
+              setTimeout(() => onNavigate(10), 100);
+            }
+          }}
+        />
+      )}
     </div>
   );
 };

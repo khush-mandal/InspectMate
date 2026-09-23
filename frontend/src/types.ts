@@ -48,14 +48,14 @@ export interface ExtractedField {
   id: string;
   label: string;
   value: string;
-  visionCrossCheck: string;
+  visionCrossCheck?: string | boolean;
   confidence: number;
-  status: 'VERIFIED' | 'NEEDS_VERIFICATION' | 'CONFLICT';
+  status: 'VERIFIED' | 'NEEDS_VERIFICATION' | 'CONFLICT' | 'FAILED';
   boundingBox: { x: number; y: number; width: number; height: number }; // percentages 0-100
   sourceAngle: 'Front' | 'Back' | 'Side' | 'Base';
   ruleReference: string;
   referenceValue?: string;
-  isCompliant: boolean | null;
+  isCompliant?: boolean | null;
   complianceNote?: string;
 }
 

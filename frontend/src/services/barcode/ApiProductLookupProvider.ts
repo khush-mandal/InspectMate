@@ -33,6 +33,7 @@ export class ApiProductLookupProvider implements IProductLookupProvider {
           brand: data.brand || undefined,
           company: data.company || undefined,
           category: data.category || undefined,
+          netQuantity: data.netQuantity || undefined,
           source: 'Open Food Facts'
         };
       }
