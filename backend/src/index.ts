@@ -1,5 +1,7 @@
  import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
+import path from 'path';
+import fs from 'fs';
 import mongoose from 'mongoose';
 import { env } from './config/env';
 import { connectDB } from './db/connection';
@@ -35,6 +37,25 @@ app.get('/api/health', async (req, res) => {
     timestamp: new Date().toISOString() 
   });
 });
+
+// Static frontend serving if built (for unified full-stack deployments)
+const candidateFrontendPaths = [
+  path.resolve(process.cwd(), '../frontend/dist'),
+  path.resolve(process.cwd(), 'frontend/dist'),
+  path.resolve(__dirname, '../../frontend/dist')
+];
+const frontendDistPath = candidateFrontendPaths.find(p => fs.existsSync(p));
+
+if (frontendDistPath) {
+  logger.info(`Serving static frontend build from: ${frontendDistPath}`);
+  app.use(express.static(frontendDistPath));
+  app.get('*', (req: Request, res: Response, next: NextFunction) => {
+    if (req.path.startsWith('/api')) {
+      return next();
+    }
+    res.sendFile(path.join(frontendDistPath, 'index.html'));
+  });
+}
 
 // Global Error Handler
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
