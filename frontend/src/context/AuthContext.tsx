@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { UserRole } from '../types';
+import { getApiUrl } from '../config/api';
 
 interface User {
   id: string;
@@ -32,7 +33,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (storedToken && storedRefreshToken) {
       // Validate token or refresh it
-      fetch('/api/auth/me', {
+      fetch(getApiUrl('/api/auth/me'), {
         headers: {
           'Authorization': `Bearer ${storedToken}`
         }
@@ -49,7 +50,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       })
       .catch(() => {
         // Try to refresh
-        fetch('/api/auth/refresh', {
+        fetch(getApiUrl('/api/auth/refresh'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ token: storedRefreshToken })
@@ -62,7 +63,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           localStorage.setItem('accessToken', data.accessToken);
           setToken(data.accessToken);
           // fetch me again to get user data
-          return fetch('/api/auth/me', {
+          return fetch(getApiUrl('/api/auth/me'), {
             headers: { 'Authorization': `Bearer ${data.accessToken}` }
           }).then(res => res.json());
         })
@@ -97,7 +98,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = () => {
     const refreshToken = localStorage.getItem('refreshToken');
     if (refreshToken) {
-      fetch('/api/auth/logout', {
+      fetch(getApiUrl('/api/auth/logout'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: refreshToken })

@@ -1,4 +1,5 @@
 import { ApiError } from '../evidenceApi.service';
+import { getApiUrl } from '../../config/api';
 
 export interface EvaluationInput {
   mrp?: string | null;
@@ -37,7 +38,7 @@ export class RulesApiClient {
     }
 
     try {
-      const response = await fetch('/api/verify', {
+      const response = await fetch(getApiUrl('/api/verify'), {
         method: 'POST',
         headers,
         body: JSON.stringify(data)

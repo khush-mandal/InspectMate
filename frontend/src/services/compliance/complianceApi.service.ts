@@ -1,3 +1,5 @@
+import { getApiUrl } from '../../config/api';
+
 export type StatutoryOutcome = 'VERIFIED' | 'POTENTIAL_VIOLATION' | 'INCONSISTENT' | 'INSUFFICIENT_EVIDENCE';
 
 export interface RuleFindingItem {
@@ -31,7 +33,7 @@ export class ComplianceApiClient {
     }
 
     try {
-      const res = await fetch('/api/verify', {
+      const res = await fetch(getApiUrl('/api/verify'), {
         method: 'POST',
         headers,
         body: JSON.stringify(payload)

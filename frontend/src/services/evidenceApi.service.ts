@@ -1,4 +1,5 @@
 import { LocalEvidenceRecord } from '../types/capture.types';
+import { getApiUrl } from '../config/api';
 
 export interface EvidenceUploadResponse {
   serverEvidenceId: string;
@@ -59,7 +60,7 @@ export const uploadEvidenceAPI = async (
       videoDuration: item.durationMs ? Math.round(item.durationMs / 1000) : undefined
     };
 
-    let response = await fetch('/api/evidence', {
+    let response = await fetch(getApiUrl('/api/evidence'), {
       method: 'POST',
       headers,
       body: JSON.stringify(payload),
@@ -71,7 +72,7 @@ export const uploadEvidenceAPI = async (
       const storedRefreshToken = localStorage.getItem('refreshToken');
       if (storedRefreshToken) {
         try {
-          const refreshRes = await fetch('/api/auth/refresh', {
+          const refreshRes = await fetch(getApiUrl('/api/auth/refresh'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ token: storedRefreshToken })
@@ -85,7 +86,7 @@ export const uploadEvidenceAPI = async (
               headers['Authorization'] = `Bearer ${authToken}`;
 
               // Retry upload with refreshed token
-              response = await fetch('/api/evidence', {
+              response = await fetch(getApiUrl('/api/evidence'), {
                 method: 'POST',
                 headers,
                 body: JSON.stringify(payload),

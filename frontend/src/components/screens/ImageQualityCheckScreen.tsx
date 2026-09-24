@@ -13,6 +13,7 @@ import { GlassCard } from '../common/GlassCard';
 import { GlassButton } from '../common/GlassButton';
 import { ConfidenceRing } from '../common/ConfidenceRing';
 import { ProductSample } from '../../types';
+import { getApiUrl } from '../../config/api';
 
 interface QualityMetricItem {
   id: string;
@@ -50,7 +51,7 @@ export const ImageQualityCheckScreen: React.FC<ImageQualityCheckScreenProps> = (
     setLoading(true);
     try {
       // Image URL ko base64/blob format me bhejte hain API endpoint par
-      const res = await fetch('/api/inspections/analyze-quality', {
+      const res = await fetch(getApiUrl('/api/inspections/analyze-quality'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

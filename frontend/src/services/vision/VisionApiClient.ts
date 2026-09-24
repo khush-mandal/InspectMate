@@ -1,4 +1,5 @@
 import { ApiError } from '../evidenceApi.service';
+import { getApiUrl } from '../../config/api';
 
 export interface VisionExtractedFields {
   productName: string | null;
@@ -28,7 +29,7 @@ export class VisionApiClient {
     }
 
     try {
-      const response = await fetch('/api/extract/vision', {
+      const response = await fetch(getApiUrl('/api/extract/vision'), {
         method: 'POST',
         headers,
         body: formData,

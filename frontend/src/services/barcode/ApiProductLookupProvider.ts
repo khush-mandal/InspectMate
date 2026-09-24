@@ -1,4 +1,5 @@
 import { IProductLookupProvider, ProductLookupResult } from './ProductLookupProvider';
+import { getApiUrl } from '../../config/api';
 
 export class ApiProductLookupProvider implements IProductLookupProvider {
   async lookup(barcode: string, format: string): Promise<ProductLookupResult | null> {
@@ -12,7 +13,7 @@ export class ApiProductLookupProvider implements IProductLookupProvider {
         headers['Authorization'] = `Bearer ${authToken}`;
       }
 
-      const response = await fetch(`/api/products/lookup/${encodeURIComponent(barcode)}`, {
+      const response = await fetch(getApiUrl(`/api/products/lookup/${encodeURIComponent(barcode)}`), {
         method: 'GET',
         headers
       });

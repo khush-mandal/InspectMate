@@ -5,6 +5,7 @@ import { GlassButton } from '../common/GlassButton';
 import { UserRole } from '../../types';
 
 import { useAuth } from '../../context/AuthContext';
+import { getApiUrl } from '../../config/api';
 
 interface LoginScreenProps {
   onLogin?: (role: UserRole) => void;
@@ -25,7 +26,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onLoginSucces
     setLoading(true);
 
     try {
-      const response = await fetch('/api/auth/login', {
+      const response = await fetch(getApiUrl('/api/auth/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),

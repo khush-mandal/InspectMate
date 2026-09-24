@@ -1,4 +1,5 @@
 import { InspectionRecord } from '../types';
+import { getApiUrl } from '../config/api';
 
 export interface InspectionListParams {
   search?: string;
@@ -60,7 +61,7 @@ class InspectionHistoryApiService {
     if (params.page) searchParams.set('page', params.page.toString());
     if (params.limit) searchParams.set('limit', params.limit.toString());
 
-    const url = `/api/inspections?${searchParams.toString()}`;
+    const url = getApiUrl(`/api/inspections?${searchParams.toString()}`);
     const res = await fetch(url, {
       method: 'GET',
       headers: this.getHeaders()
@@ -100,7 +101,7 @@ class InspectionHistoryApiService {
   }
 
   async getAnalytics(): Promise<RegulatoryAnalyticsData> {
-    const res = await fetch('/api/inspections/analytics', {
+    const res = await fetch(getApiUrl('/api/inspections/analytics'), {
       method: 'GET',
       headers: this.getHeaders()
     });
@@ -132,7 +133,7 @@ class InspectionHistoryApiService {
     fieldReviews?: any[];
     violationReviews?: any[];
   }): Promise<{ success: boolean; data: any }> {
-    const res = await fetch('/api/inspections/save-dossier', {
+    const res = await fetch(getApiUrl('/api/inspections/save-dossier'), {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(payload)

@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { getApiUrl } from '../config/api';
 
 export const useUpdateInspection = () => {
   const { token, logout } = useAuth();
@@ -23,7 +24,7 @@ export const useUpdateInspection = () => {
     setError(null);
 
     try {
-      const response = await fetch(`/api/inspections/${inspectionId}/metadata`, {
+      const response = await fetch(getApiUrl(`/api/inspections/${inspectionId}/metadata`), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

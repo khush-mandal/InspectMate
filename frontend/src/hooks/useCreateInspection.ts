@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { getApiUrl } from '../config/api';
 
 export const useCreateInspection = () => {
   const { token, logout } = useAuth();
@@ -18,7 +19,7 @@ export const useCreateInspection = () => {
     setError(null);
 
     try {
-      const response = await fetch('/api/inspections', {
+      const response = await fetch(getApiUrl('/api/inspections'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

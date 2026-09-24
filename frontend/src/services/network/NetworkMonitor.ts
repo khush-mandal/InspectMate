@@ -1,3 +1,5 @@
+import { getApiUrl } from '../../config/api';
+
 export type NetworkStatus = 'ONLINE_HEALTHY' | 'ONLINE_UNREACHABLE' | 'OFFLINE';
 
 export class NetworkMonitor {
@@ -48,7 +50,7 @@ export class NetworkMonitor {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 4000);
 
-      const res = await fetch('/api/health', {
+      const res = await fetch(getApiUrl('/api/health'), {
         method: 'GET',
         signal: controller.signal,
         cache: 'no-store'

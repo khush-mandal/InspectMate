@@ -6,6 +6,7 @@ import {
   ReviewableViolation,
   InspectorDecision
 } from '../types/domain.types';
+import { getApiUrl } from '../config/api';
 
 export interface ReviewBundleResponse {
   inspection: any;
@@ -45,7 +46,7 @@ class InspectionReviewService {
   }
 
   async getReviewBundle(inspectionId: string): Promise<ReviewBundleResponse> {
-    const res = await fetch(`/api/inspections/${inspectionId}/review`, {
+    const res = await fetch(getApiUrl(`/api/inspections/${inspectionId}/review`), {
       method: 'GET',
       headers: this.getHeaders()
     });
@@ -69,7 +70,7 @@ class InspectionReviewService {
       notes?: string;
     }
   ): Promise<{ field: ReviewableField; allFields: ReviewableField[] }> {
-    const res = await fetch(`/api/inspections/${inspectionId}/field-review`, {
+    const res = await fetch(getApiUrl(`/api/inspections/${inspectionId}/field-review`), {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(payload)
@@ -91,7 +92,7 @@ class InspectionReviewService {
       overrideReason?: string;
     }
   ): Promise<{ violation: ReviewableViolation; allViolations: ReviewableViolation[] }> {
-    const res = await fetch(`/api/inspections/${inspectionId}/violation-review`, {
+    const res = await fetch(getApiUrl(`/api/inspections/${inspectionId}/violation-review`), {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(payload)
@@ -114,7 +115,7 @@ class InspectionReviewService {
       violationDecisions?: any[];
     }
   ): Promise<{ success: boolean; decision: InspectorDecision; inspection: any }> {
-    const res = await fetch(`/api/inspections/${inspectionId}/decision`, {
+    const res = await fetch(getApiUrl(`/api/inspections/${inspectionId}/decision`), {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(payload)
@@ -141,7 +142,7 @@ class InspectionReviewService {
       notes?: string;
     }
   ): Promise<{ success: boolean; evidence: any; evidenceCount: number }> {
-    const res = await fetch(`/api/inspections/${inspectionId}/additional-evidence`, {
+    const res = await fetch(getApiUrl(`/api/inspections/${inspectionId}/additional-evidence`), {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(payload)
@@ -156,7 +157,7 @@ class InspectionReviewService {
   }
 
   async getAuditTrail(inspectionId: string): Promise<{ logs: any[]; decisions: InspectorDecision[] }> {
-    const res = await fetch(`/api/inspections/${inspectionId}/audit-trail`, {
+    const res = await fetch(getApiUrl(`/api/inspections/${inspectionId}/audit-trail`), {
       method: 'GET',
       headers: this.getHeaders()
     });

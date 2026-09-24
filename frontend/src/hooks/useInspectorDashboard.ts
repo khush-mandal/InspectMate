@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { InspectionRecord } from '../types';
+import { getApiUrl } from '../config/api';
 
 export interface DashboardSummary {
   totalInspections: number;
@@ -47,7 +48,7 @@ export const useInspectorDashboard = () => {
     setError(null);
 
     try {
-      const response = await fetch('/api/inspections/dashboard', {
+      const response = await fetch(getApiUrl('/api/inspections/dashboard'), {
         headers: {
           'Authorization': `Bearer ${token}`
         },
