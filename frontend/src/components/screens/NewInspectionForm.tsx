@@ -206,14 +206,14 @@ export const NewInspectionForm: React.FC<NewInspectionFormProps> = ({
             </div>
           </div>
 
-          {/* Preset Sample Selector to test different legal scenarios */}
+          {/* Preset Commodity Reference Selector */}
           <div className="mt-5 pt-4 border-t border-slate-200/80">
             <div className="flex items-center justify-between mb-2.5">
               <label className="block text-xs font-bold text-slate-800 flex items-center gap-1.5">
                 <Sparkles size={14} className="text-indigo-600" />
-                Select Test Product Dossier:
+                Commodity Reference Presets:
               </label>
-              <span className="text-[11px] text-slate-500">Pick a sample to simulate real enforcement scenarios</span>
+              <span className="text-[11px] text-slate-500">Select standard commodity profile or proceed to optical capture</span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -237,15 +237,9 @@ export const NewInspectionForm: React.FC<NewInspectionFormProps> = ({
                       <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-mono">
                         GTIN: {prod.gtin}
                       </span>
-                      {prod.hasViolation ? (
-                        <span className="text-[10px] font-bold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded">
-                          Discrepancy Case
-                        </span>
-                      ) : (
-                        <span className="text-[10px] font-bold text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded">
-                          Compliant Case
-                        </span>
-                      )}
+                      <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
+                        Catalog Item
+                      </span>
                     </div>
                     <p className="text-xs font-bold text-slate-900 leading-tight truncate">
                       {prod.name}

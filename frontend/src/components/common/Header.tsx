@@ -6,7 +6,6 @@ import {
   LogOut, 
   Wifi, 
   WifiOff, 
-  Layers, 
   ChevronDown,
   CheckCircle2,
   AlertCircle
@@ -18,7 +17,6 @@ interface HeaderProps {
   role?: UserRole;
   onRoleChange?: (role: UserRole) => void;
   onLogout?: () => void;
-  onOpenScreenSelector?: () => void;
   currentScreenName?: string;
   currentScreen?: number;
   onNavigate?: (screen: number) => void;
@@ -67,22 +65,12 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Center: Interactive Screen Navigator Trigger */}
-        <button
-          onClick={() => {
-            if (onOpenScreenSelector) {
-              onOpenScreenSelector();
-            } else {
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }
-          }}
-          className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/70 hover:bg-white/95 border border-slate-200/90 text-xs font-semibold text-slate-800 shadow-xs transition cursor-pointer"
-        >
-          <Layers size={14} className="text-indigo-600" />
-          <span className="text-slate-500">Screen:</span>
-          <span className="text-indigo-950 font-bold max-w-[160px] truncate">{currentScreenName}</span>
-          <span className="px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 text-[10px] font-mono">19 Screens</span>
-        </button>
+        {/* Center: Production Status & View Indicator */}
+        <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100/80 border border-slate-200/80 text-xs text-slate-700">
+          <span className="w-2 h-2 rounded-full bg-teal-500"></span>
+          <span className="text-slate-500 font-medium">Session:</span>
+          <span className="text-slate-900 font-bold max-w-[180px] truncate">{currentScreenName}</span>
+        </div>
 
         {/* Right: Role Switcher, PWA, Alerts, Profile */}
         <div className="flex items-center gap-2 sm:gap-3">

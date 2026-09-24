@@ -2,9 +2,8 @@ import React, { useState } from 'react';
 import { Header } from './components/common/Header';
 import { Sidebar } from './components/common/Sidebar';
 import { BottomNav } from './components/common/BottomNav';
-import { ScreenNavigator } from './components/common/ScreenNavigator';
 
-// 19 Screens
+// Regulatory Inspection Modules
 import { LoginScreen } from './components/screens/LoginScreen';
 import { InspectorDashboard } from './components/screens/InspectorDashboard';
 import { NewInspectionForm } from './components/screens/NewInspectionForm';
@@ -31,6 +30,28 @@ import { ProductSample, InspectionRecord, UserRole, ProductIdentificationMode } 
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ProtectedRoute } from './components/common/ProtectedRoute';
 import { EvidenceCaptureProvider } from './context/EvidenceCaptureContext';
+
+const SCREEN_TITLES: Record<number, string> = {
+  1: 'Authentication',
+  2: 'Inspector Dashboard',
+  3: 'New Inspection Form',
+  4: 'Product Identification',
+  5: 'Capture Evidence',
+  6: 'Image Quality Assessment',
+  7: 'Video Fallback Ingestion',
+  8: 'OCR Glyph Extraction',
+  9: 'Dual-Engine OCR Verification',
+  10: 'GS1 Central Barcode Lookup',
+  11: 'Cross-Source Verification Flow',
+  12: 'Statutory Compliance Checklist',
+  13: 'Evidentiary Finding Dossier',
+  14: 'Classification Taxonomy Reference',
+  15: 'Inspector Review & Adjudication',
+  16: 'Statutory Notice Generation',
+  17: 'Central Audit History',
+  18: 'Regulatory Analytics Portal',
+  19: 'System Diagnostic Sandbox'
+};
 
 function AppContent() {
   const { user, role, isLoading, logout } = useAuth();
@@ -93,21 +114,12 @@ function AppContent() {
         <div className="absolute -bottom-[10%] left-[20%] w-[50vw] h-[50vw] rounded-full bg-violet-200/35 blur-[140px]" />
       </div>
 
-      {/* Screen Navigator Toolbar across the top for quick review */}
-      <div className="no-print">
-        <ScreenNavigator
-          currentScreen={currentScreen}
-          onNavigate={handleNavigate}
-          isOnline={isOnline}
-          onToggleOnline={() => setIsOnline(!isOnline)}
-        />
-      </div>
-
       {/* Persistent App Header */}
       {user && (
         <div className="no-print">
           <Header
             currentScreen={currentScreen}
+            currentScreenName={SCREEN_TITLES[currentScreen] || 'Dashboard'}
             onNavigate={handleNavigate}
             isOnline={isOnline}
             role={role as UserRole}
@@ -244,7 +256,7 @@ function AppContent() {
           {currentScreen === 13 && (
             <EvidenceFindingCardScreen
               product={selectedProduct}
-              onProceed={() => handleNavigate(14)}
+              onProceed={() => handleNavigate(15)}
               onNavigate={handleNavigate}
             />
           )}

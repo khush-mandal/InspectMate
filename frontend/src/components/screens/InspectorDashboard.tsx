@@ -149,14 +149,6 @@ export const InspectorDashboard: React.FC<InspectorDashboardProps> = ({
             <RefreshCw size={18} className={isLoading ? 'animate-spin' : ''} />
           </button>
 
-          <GlassButton
-            onClick={() => onNavigate(19)}
-            variant="secondary"
-            size="md"
-            icon={<AlertTriangle size={15} className="text-amber-600" />}
-          >
-            Diagnostics
-          </GlassButton>
 
           <GlassButton
             onClick={handleStartNewInspection}

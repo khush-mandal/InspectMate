@@ -49,7 +49,7 @@ export const EvidenceFindingCardScreen: React.FC<EvidenceFindingCardScreenProps>
           onClick={onProceed}
           icon={<ArrowRight size={16} />}
         >
-          View Classification System →
+          Proceed to Inspector Review →
         </GlassButton>
       </div>
 

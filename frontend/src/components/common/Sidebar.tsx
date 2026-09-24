@@ -6,9 +6,7 @@ import {
   FileCheck2, 
   BarChart3, 
   Compass, 
-  AlertOctagon,
-  Shield,
-  Layers
+  Shield
 } from 'lucide-react';
 import { UserRole } from '../../types';
 
@@ -36,15 +34,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: 'New Inspection',
       screen: 3,
       icon: PlusCircle,
-      badge: 'Draft',
+      badge: 'Active',
       roles: ['inspector']
     },
     {
-      id: 'inspection-flow',
-      label: 'Interactive Journey',
+      id: 'active-inspection',
+      label: 'Field Audit & Evidence',
       screen: 4,
       icon: Compass,
-      subtitle: 'Screens 4-15',
+      roles: ['inspector', 'regulator']
+    },
+    {
+      id: 'final-report',
+      label: 'Notices & Reports',
+      screen: 16,
+      icon: FileCheck2,
       roles: ['inspector', 'regulator']
     },
     {
@@ -55,27 +59,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       roles: ['inspector', 'regulator']
     },
     {
-      id: 'final-report',
-      label: 'Inspection Report',
-      screen: 16,
-      icon: FileCheck2,
-      roles: ['inspector', 'regulator']
-    },
-    {
       id: 'analytics',
       label: 'Regulatory Analytics',
       screen: 18,
       icon: BarChart3,
-      badge: 'Regulator',
+      badge: 'Admin',
       roles: ['regulator', 'inspector']
-    },
-    {
-      id: 'edge-cases',
-      label: 'Error & Edge States',
-      screen: 19,
-      icon: AlertOctagon,
-      badge: 'Diagnostics',
-      roles: ['inspector', 'regulator']
     }
   ];
 
@@ -90,7 +79,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           const Icon = item.icon;
           const isActive = 
             item.screen === currentScreen ||
-            (item.id === 'inspection-flow' && currentScreen >= 4 && currentScreen <= 15);
+            (item.id === 'active-inspection' && currentScreen >= 4 && currentScreen <= 15);
 
           return (
             <button
